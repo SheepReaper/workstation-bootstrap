@@ -4,6 +4,7 @@ set -eu
 payload=${1:-developer}
 github_owner=${2:-SheepReaper}
 dotfiles_repository=${3:-dotfiles}
+NVM_VERSION=0.40.4
 
 case "$payload" in
     profile|developer) ;;
@@ -45,11 +46,29 @@ install_pass_cli() {
     trap - EXIT HUP INT TERM
 }
 
+install_node_lts() {
+    export NVM_DIR="$HOME/.nvm"
+    if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+        curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh" -o "$tmp/install-nvm.sh"
+        PROFILE=/dev/null bash "$tmp/install-nvm.sh"
+        rm -rf "$tmp"
+        trap - EXIT HUP INT TERM
+    fi
+    # shellcheck disable=SC1090
+    . "$NVM_DIR/nvm.sh"
+    nvm install --lts
+    nvm alias default lts
+    nvm use default
+}
+
 if [ "$payload" = developer ]; then
     case " $os_id $os_like " in
         *" debian "*|*" ubuntu "*)
             sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gh git git-lfs jq nodejs npm openssh-client rclone ripgrep socat unzip
+            sudo apt-get install -y ca-certificates curl gh git git-lfs jq openssh-client rclone ripgrep socat unzip
+            install_node_lts
             ;;
         *" openwrt "*)
             opkg update

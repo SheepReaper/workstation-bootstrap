@@ -36,6 +36,9 @@ Developer restores run `npx skills install -g` after chezmoi applies the private
 dotfiles repository and its `~/.agents/.skill-lock.json`. Platforms without
 Node.js, including the lightweight OpenWrt path, skip dependency restoration
 while still applying the portable agent files managed directly by chezmoi.
+Node.js itself is installed through NVM rather than as an unversioned system
+package: NVM for Windows selects LTS on Windows, and pinned `nvm-sh` selects and
+aliases LTS as the default on Ubuntu/Debian.
 
 ## Security boundaries
 

@@ -155,6 +155,27 @@ function Restore-AgentSkills {
     if ($LASTEXITCODE -ne 0) { throw 'Agent skill restoration failed.' }
 }
 
+function Initialize-NodeLts {
+    foreach ($name in 'NVM_HOME', 'NVM_SYMLINK') {
+        $value = [Environment]::GetEnvironmentVariable($name, 'User')
+        if (-not $value) { $value = [Environment]::GetEnvironmentVariable($name, 'Machine') }
+        if ($value) { Set-Item -LiteralPath "env:$name" -Value $value }
+    }
+    $env:Path = [Environment]::ExpandEnvironmentVariables((@(
+        [Environment]::GetEnvironmentVariable('Path', 'Machine')
+        [Environment]::GetEnvironmentVariable('Path', 'User')
+    ) -join ';'))
+
+    $nvm = Get-Command nvm.exe -ErrorAction SilentlyContinue
+    if (-not $nvm) { throw 'NVM for Windows is unavailable after the developer package phase.' }
+
+    $nvmPath = $nvm.Source.Replace("'", "''")
+    $commands = "& '$nvmPath' install lts; if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }; & '$nvmPath' use lts; exit `$LASTEXITCODE"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($commands))
+    $process = Start-Process pwsh.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
+    if ($process.ExitCode -ne 0) { throw 'NVM failed to install and activate the current Node.js LTS release.' }
+}
+
 $sourceRoot = Get-SourceRoot
 
 Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
@@ -164,6 +185,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 }
 if ($Profile -in @('developer', 'optional')) {
     Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') }
+    Invoke-Phase 'node-lts' { Initialize-NodeLts }
 }
 if ($Profile -eq 'optional') {
     Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') }

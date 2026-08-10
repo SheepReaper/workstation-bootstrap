@@ -11,8 +11,8 @@ properties:
       id: python
       settings: { id: Python.Python.3.13, source: winget }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: node
-      settings: { id: OpenJS.NodeJS.LTS, source: winget }
+      id: nvm-windows
+      settings: { id: CoreyButler.NVMforWindows, source: winget, version: 1.2.2 }
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: docker
       settings: { id: Docker.DockerDesktop, source: winget }

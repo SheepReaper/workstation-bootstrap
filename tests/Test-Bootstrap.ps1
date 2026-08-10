@@ -28,6 +28,14 @@ Describe 'bootstrap contract' {
         $script:Packages | Should Match 'Rclone\.Rclone'
     }
 
+    It 'installs and activates LTS Node through NVM for Windows' {
+        $developer = Get-Content -Raw (Join-Path $script:Root 'config/winget/developer.dsc.winget')
+        $developer | Should Match 'CoreyButler\.NVMforWindows'
+        $developer | Should Not Match 'OpenJS\.NodeJS'
+        $script:Bootstrap | Should Match 'nvm(?:\.exe)?[^\r\n]*install[^\r\n]*lts'
+        $script:Bootstrap | Should Match 'nvm(?:\.exe)?[^\r\n]*use[^\r\n]*lts'
+    }
+
     It 'never mutates or removes legacy ssh keys' {
         $script:Bootstrap | Should Not Match 'Remove-Item[^\r\n]*\.ssh'
         $script:Bootstrap | Should Not Match 'ssh-keygen[^\r\n]*-[Rr]'
