@@ -72,16 +72,18 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     $logPath = Join-Path $stateDirectory 'bootstrap-elevated.log'
     $command = @(
         "Start-Transcript -LiteralPath $(& $quote $logPath) -Force"
-        '`$exitCode = 1'
+        '$exitCode = 1'
         "try { $($bootstrapCommand -join ' '); `$exitCode = `$LASTEXITCODE }"
         'catch { Write-Error $_ }'
         'finally { Stop-Transcript -ErrorAction SilentlyContinue }'
         "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode. Log: $logPath`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
         'exit $exitCode'
     )
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($command -join ' ')))
+    $wrapperPath = Join-Path $stateDirectory 'bootstrap-elevated.ps1'
+    Set-Content -LiteralPath $wrapperPath -Value ($command -join "`r`n") -Encoding utf8
+    $quotedWrapperPath = '"' + $wrapperPath + '"'
     Write-Host '[elevate] Approve the single UAC prompt for workstation and package configuration.'
-    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded
+    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedWrapperPath
     exit $process.ExitCode
 }
 

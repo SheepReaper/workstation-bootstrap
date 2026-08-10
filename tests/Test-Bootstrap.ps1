@@ -68,14 +68,16 @@ Describe 'bootstrap contract' {
     It 'requests elevation once and preserves the originating user profile' {
         $script:Bootstrap | Should Match 'function Test-IsAdministrator'
         $script:Bootstrap | Should Match 'Start-Process powershell\.exe -Verb RunAs'
-        $script:Bootstrap | Should Match "ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand'"
+        $script:Bootstrap | Should Match "ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'"
         $script:Bootstrap | Should Match 'pwsh[^\r\n]*-ExecutionPolicy Bypass[^\r\n]*-File'
         ([regex]::Matches($script:Bootstrap, '-Verb RunAs')).Count | Should Be 1
         $script:Bootstrap | Should Match 'ExpectedUserProfile'
         $script:Bootstrap | Should Match 'UAC elevation changed the user profile'
         $script:Bootstrap | Should Match 'bootstrap-elevated\.log'
+        $script:Bootstrap | Should Match 'bootstrap-elevated\.ps1'
         $script:Bootstrap | Should Match 'Start-Transcript'
         $script:Bootstrap | Should Match 'Read-Host[^\r\n]*Press Enter to close'
+        $script:Bootstrap | Should Match '\$command -join "`r`n"'
     }
 
     It 'returns control to the elevated wrapper when the PowerShell 7 continuation fails' {
