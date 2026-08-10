@@ -119,6 +119,34 @@ function Initialize-GitHub {
     gh auth setup-git
 }
 
+function Initialize-OpenSshAgent {
+    $client = Get-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'
+    $needsClient = $client.State -ne 'Installed'
+    $service = Get-Service ssh-agent -ErrorAction SilentlyContinue
+    $needsService = -not $service -or $service.StartType -eq 'Disabled' -or $service.Status -ne 'Running'
+    if (-not $needsClient -and -not $needsService) { return }
+
+    $commands = @()
+    if ($needsClient) { $commands += "Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'" }
+    $commands += "Set-Service -Name ssh-agent -StartupType Automatic"
+    $commands += "Start-Service -Name ssh-agent"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($commands -join '; ')))
+    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
+    if ($process.ExitCode -ne 0) { throw 'OpenSSH client/agent configuration failed.' }
+}
+
+function Set-LocalDocumentsKnownFolder {
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+    $current = (Get-ItemProperty -Path $key -Name Personal).Personal
+    $desired = '%USERPROFILE%\Documents'
+    if ($current -eq $desired) { return }
+    $backup = Join-Path $stateDirectory 'documents-known-folder.txt'
+    Set-Content -LiteralPath $backup -Value $current -Encoding utf8
+    New-Item -ItemType Directory -Force -Path (Join-Path $HOME 'Documents') | Out-Null
+    Set-ItemProperty -Path $key -Name Personal -Value $desired
+    Write-Warning 'The Documents known-folder pointer is now local. Sign out after bootstrap so every application observes the change. Existing OneDrive content was not moved.'
+}
+
 $sourceRoot = Get-SourceRoot
 
 Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
@@ -131,6 +159,8 @@ if ($Profile -eq 'optional') {
 Invoke-Phase 'pass-cli' { Install-PassCli }
 Invoke-Phase 'vault' { Initialize-Vault }
 Invoke-Phase 'github' { Initialize-GitHub }
+Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
+Invoke-Phase 'local-documents-profile' { Set-LocalDocumentsKnownFolder }
 Invoke-Phase 'dotfiles-windows' {
     chezmoi init --apply "https://github.com/$GitHubOwner/$DotfilesRepository.git"
 }
