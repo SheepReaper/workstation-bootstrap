@@ -135,18 +135,6 @@ function Initialize-OpenSshAgent {
     if ($process.ExitCode -ne 0) { throw 'OpenSSH client/agent configuration failed.' }
 }
 
-function Set-LocalDocumentsKnownFolder {
-    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
-    $current = (Get-ItemProperty -Path $key -Name Personal).Personal
-    $desired = '%USERPROFILE%\Documents'
-    if ($current -eq $desired) { return }
-    $backup = Join-Path $stateDirectory 'documents-known-folder.txt'
-    Set-Content -LiteralPath $backup -Value $current -Encoding utf8
-    New-Item -ItemType Directory -Force -Path (Join-Path $HOME 'Documents') | Out-Null
-    Set-ItemProperty -Path $key -Name Personal -Value $desired
-    Write-Warning 'The Documents known-folder pointer is now local. Sign out after bootstrap so every application observes the change. Existing OneDrive content was not moved.'
-}
-
 $sourceRoot = Get-SourceRoot
 
 Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
@@ -160,7 +148,6 @@ Invoke-Phase 'pass-cli' { Install-PassCli }
 if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
 Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
-Invoke-Phase 'local-documents-profile' { Set-LocalDocumentsKnownFolder }
 Invoke-Phase 'dotfiles-windows' {
     chezmoi init --apply "https://github.com/$GitHubOwner/$DotfilesRepository.git"
 }

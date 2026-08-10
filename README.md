@@ -14,10 +14,11 @@ For a non-default profile, download the script and invoke it with
 `-Profile core` or `-Profile optional`. Progress is journaled under
 `%LOCALAPPDATA%\WorkstationBootstrap`; rerunning safely resumes completed phases.
 
-The script changes the Windows Documents known-folder pointer to the local
-`%USERPROFILE%\Documents` path so PowerShell no longer loads its profile from
-OneDrive. It records the previous registry value but does not move or delete any
-Documents content. Sign out after bootstrap for all applications to observe it.
+The script leaves the Windows Documents known-folder pointer unchanged. Chezmoi
+installs a tiny loader at the profile paths reported by PowerShell, regardless of
+whether Documents is local or protected by OneDrive. The loader redirects the
+session's `$PROFILE` value and loads the real configuration from the local
+`%USERPROFILE%\.config\powershell\profile.ps1` file.
 
 ## Linux
 

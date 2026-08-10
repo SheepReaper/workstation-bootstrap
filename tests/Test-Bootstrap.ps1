@@ -32,4 +32,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Not Match 'Remove-Item[^\r\n]*\.ssh'
         $script:Bootstrap | Should Not Match 'ssh-keygen[^\r\n]*-[Rr]'
     }
+
+    It 'does not redirect the Windows Documents known folder' {
+        $script:Bootstrap | Should Not Match 'User Shell Folders|Set-ItemProperty[^\r\n]*Personal'
+    }
 }
