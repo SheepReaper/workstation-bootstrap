@@ -17,8 +17,9 @@ For a non-default profile, download the script and invoke it with
 The script leaves the Windows Documents known-folder pointer unchanged. Chezmoi
 installs a tiny loader at the profile paths reported by PowerShell, regardless of
 whether Documents is local or protected by OneDrive. The loader redirects the
-session's `$PROFILE` value and loads the real configuration from the local
-`%USERPROFILE%\.config\powershell\profile.ps1` file.
+startup flow to the real configuration at the local
+`%USERPROFILE%\.config\powershell\profile.ps1` file without modifying the
+automatic `$PROFILE` variable.
 
 ## Linux
 
