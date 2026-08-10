@@ -18,6 +18,12 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Not Match 'GITHUB_TOKEN\s*='
     }
 
+    It 'reconciles completed phases instead of permanently skipping them' {
+        $script:Bootstrap | Should Match 'CompletedPhases -contains \$Name\) \{ ''refresh'' \}'
+        $script:Bootstrap | Should Not Match '\[skip\]'
+        $script:Bootstrap | Should Not Match 'CompletedPhases -contains \$Name\)[^}]+return'
+    }
+
     It 'does not journal the vault phase when vault setup is skipped' {
         $script:Bootstrap | Should Match 'if \(-not \$SkipVault\) \{ Invoke-Phase ''vault'''
     }
@@ -56,5 +62,32 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'npx(?:\.cmd)?[^\r\n]*--yes[^\r\n]*skills[^\r\n]*install[^\r\n]*-g'
         $script:Bootstrap.IndexOf("Invoke-Phase 'agent-skills'") |
             Should BeGreaterThan $script:Bootstrap.IndexOf("Invoke-Phase 'dotfiles-windows'")
+    }
+
+    It 'updates an existing chezmoi checkout before applying it' {
+        $script:Bootstrap | Should Match 'chezmoi source-path'
+        $script:Bootstrap | Should Match 'chezmoi git -- pull --ff-only'
+        $script:Bootstrap | Should Match 'chezmoi apply'
+    }
+
+    It 'does not reinstall an existing Ubuntu distribution' {
+        $script:Bootstrap | Should Match 'wsl[^\r\n]*--list[^\r\n]*--quiet'
+        $script:Bootstrap | Should Match 'if \(-not \$ubuntuInstalled\)'
+    }
+
+    It 'repairs incomplete pass-cli sync and keychain configuration' {
+        $script:Bootstrap | Should Match 'pass-cli sync enable'
+        $script:Bootstrap | Should Match 'pass-cli keychain enable'
+        $script:Bootstrap | Should Match 'onedrive:\.pass-cli'
+    }
+
+    It 'only installs the prompt font when it is absent' {
+        $script:Bootstrap | Should Match 'CascadiaCode[^\r\n]*-ErrorAction SilentlyContinue'
+    }
+
+    It 'propagates failures from external reconciliation commands' {
+        $script:Bootstrap | Should Match 'GitHub CLI credential-helper configuration failed'
+        $script:Bootstrap | Should Match 'VS Code extension installation failed'
+        $script:Bootstrap | Should Match 'Linux bootstrap failed in WSL'
     }
 }

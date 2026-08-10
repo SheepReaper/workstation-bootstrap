@@ -5,6 +5,7 @@ payload=${1:-developer}
 github_owner=${2:-SheepReaper}
 dotfiles_repository=${3:-dotfiles}
 NVM_VERSION=0.40.4
+export PATH="$HOME/.local/bin:$PATH"
 
 case "$payload" in
     profile|developer) ;;
@@ -21,7 +22,7 @@ if [ -r /etc/os-release ]; then
 fi
 
 install_pass_cli() {
-    command -v pass-cli >/dev/null 2>&1 && return
+    command -v pass-cli >/dev/null 2>&1 && pass-cli version >/dev/null 2>&1 && return
     arch=$(uname -m)
     case "$arch" in
         x86_64|amd64) release_arch=x86_64 ;;
@@ -63,26 +64,86 @@ install_node_lts() {
     nvm use default
 }
 
-if [ "$payload" = developer ]; then
+install_profile_packages() {
     case " $os_id $os_like " in
         *" debian "*|*" ubuntu "*)
             sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gh git git-lfs jq openssh-client rclone ripgrep socat unzip
-            install_node_lts
+            sudo apt-get install -y ca-certificates curl gh git openssh-client rclone unzip
             ;;
         *" openwrt "*)
             opkg update
             opkg install ca-bundle ca-certificates curl git git-http openssh-client-utils
             ;;
-        *) echo "No developer package mapping for $os_id ($os_like); applying profile only." >&2 ;;
+        *)
+            printf '%s\n' "No package mapping for $os_id ($os_like); using tools already present." >&2
+            ;;
     esac
-fi
+}
+
+install_developer_packages() {
+    case " $os_id $os_like " in
+        *" debian "*|*" ubuntu "*)
+            sudo apt-get install -y git-lfs jq ripgrep socat
+            install_node_lts
+            ;;
+        *" openwrt "*) ;;
+        *) printf '%s\n' "No developer package mapping for $os_id ($os_like); applying profile only." >&2 ;;
+    esac
+}
+
+initialize_vault() {
+    command -v pass-cli >/dev/null 2>&1 || return 0
+    command -v rclone >/dev/null 2>&1 || return 0
+    if ! rclone listremotes 2>/dev/null | grep -qx 'onedrive:'; then
+        printf '%s\n' 'Configure an rclone remote named onedrive. OAuth interaction is expected.'
+        rclone config
+    fi
+    if [ ! -f "$HOME/.pass-cli/vault.enc" ]; then
+        printf '%s\n' 'Connect pass-cli to the existing onedrive:.pass-cli vault when prompted.'
+        pass-cli init
+    fi
+
+    vault_config=
+    for candidate in "$HOME/.pass-cli/config.yml" "$HOME/.pass-cli/config.yaml"; do
+        if [ -f "$candidate" ]; then vault_config=$candidate; break; fi
+    done
+    if [ -z "$vault_config" ] ||
+       ! grep -Eq '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$' "$vault_config" ||
+       ! grep -Eq '^[[:space:]]*remote:[[:space:]]*onedrive:\.pass-cli[[:space:]]*$' "$vault_config"; then
+        printf '%s\n' 'Configure pass-cli sync for onedrive:.pass-cli when prompted.'
+        pass-cli sync enable
+    fi
+
+    keychain_status=$(pass-cli keychain status 2>&1 || true)
+    if printf '%s' "$keychain_status" | grep -q 'System Keychain:.*Available' &&
+       ! printf '%s' "$keychain_status" | grep -q 'Password Stored:.*Yes'; then
+        pass-cli keychain enable
+    fi
+    pass-cli doctor
+}
+
+sync_dotfiles() {
+    source_path=$(chezmoi source-path)
+    if [ -d "$source_path/.git" ]; then
+        chezmoi git -- pull --ff-only
+        chezmoi apply
+    else
+        chezmoi init --apply "https://github.com/${github_owner}/${dotfiles_repository}.git"
+    fi
+}
+
+install_profile_packages
+if [ "$payload" = developer ]; then install_developer_packages; fi
 
 if ! command -v chezmoi >/dev/null 2>&1; then
     sh -c "$(curl -fsLS https://get.chezmoi.io/lb)"
 fi
 
-install_pass_cli || true
+case " $os_id $os_like " in
+    *" openwrt "*) printf '%s\n' 'Skipping pass-cli on OpenWrt because the upstream binary targets glibc.' >&2 ;;
+    *) install_pass_cli ;;
+esac
+initialize_vault
 
 if command -v systemctl >/dev/null 2>&1 && grep -qi microsoft /proc/version 2>/dev/null; then
     sudo install -m 0644 /dev/stdin /etc/wsl.conf <<'EOF'
@@ -99,7 +160,7 @@ if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
 fi
 command -v gh >/dev/null 2>&1 && gh auth setup-git || true
 
-chezmoi init --apply "https://github.com/${github_owner}/${dotfiles_repository}.git"
+sync_dotfiles
 if [ "$payload" = developer ]; then
     if command -v npx >/dev/null 2>&1; then
         npx --yes skills install -g

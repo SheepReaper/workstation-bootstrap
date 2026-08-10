@@ -40,6 +40,15 @@ Node.js itself is installed through NVM rather than as an unversioned system
 package: NVM for Windows selects LTS on Windows, and pinned `nvm-sh` selects and
 aliases LTS as the default on Ubuntu/Debian.
 
+Bootstrap is reconciliation-based. Reruns refresh every applicable phase even
+when it previously completed, while each phase checks existing state before
+making changes. WinGet and OS package managers converge packages; existing
+dotfiles repositories are fast-forwarded and applied; existing Ubuntu WSL
+distributions are reused; and pass-cli, fonts, agents, and configuration files
+only repair missing or stale state. The local phase journal records successful
+progress for reboot/interruption diagnosis but never permanently suppresses a
+future refresh.
+
 ## Security boundaries
 
 - pass-cli is the only component synchronized through OneDrive, via rclone.

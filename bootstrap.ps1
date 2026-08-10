@@ -4,7 +4,8 @@ param(
     [string]$Profile = 'developer',
     [string]$GitHubOwner = 'SheepReaper',
     [string]$DotfilesRepository = 'dotfiles',
-    [switch]$SkipVault
+    [switch]$SkipVault,
+    [switch]$CoreReady
 )
 
 Set-StrictMode -Version Latest
@@ -34,7 +35,8 @@ function Get-SourceRoot {
 
 function Get-State {
     if (Test-Path $statePath) {
-        return Get-Content -Raw $statePath | ConvertFrom-Json
+        try { return Get-Content -Raw $statePath | ConvertFrom-Json }
+        catch { Write-Warning "Ignoring unreadable bootstrap state: $statePath" }
     }
     return [pscustomobject]@{ CompletedPhases = @() }
 }
@@ -46,11 +48,8 @@ function Save-State([object]$State) {
 
 function Invoke-Phase([string]$Name, [scriptblock]$Action) {
     $state = Get-State
-    if ($state.CompletedPhases -contains $Name) {
-        Write-Host "[skip] $Name"
-        return
-    }
-    Write-Host "[run ] $Name"
+    $label = if ($state.CompletedPhases -contains $Name) { 'refresh' } else { 'run ' }
+    Write-Host "[$label] $Name"
     & $Action
     $state = Get-State
     $state.CompletedPhases = @($state.CompletedPhases) + $Name | Select-Object -Unique
@@ -65,7 +64,23 @@ function Invoke-WinGetConfiguration([string]$Path) {
 }
 
 function Install-PassCli {
-    if (Get-Command pass-cli -ErrorAction SilentlyContinue) { return }
+    $bin = Join-Path $env:LOCALAPPDATA 'Programs\pass-cli'
+    $installedBinary = Join-Path $bin 'pass-cli.exe'
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if (($userPath -split ';') -notcontains $bin) {
+        $updatedPath = @(if ($userPath) { $userPath.TrimEnd(';') }; $bin) | Where-Object { $_ }
+        [Environment]::SetEnvironmentVariable('Path', ($updatedPath -join ';'), 'User')
+    }
+    if (($env:Path -split ';') -notcontains $bin) { $env:Path = "$bin;$env:Path" }
+    if (Test-Path -LiteralPath $installedBinary) {
+        & $installedBinary version *> $null
+        if ($LASTEXITCODE -eq 0) { return }
+    }
+    $otherPassCli = Get-Command pass-cli -ErrorAction SilentlyContinue
+    if ($otherPassCli -and $otherPassCli.Source -ne $installedBinary) {
+        & $otherPassCli.Source version *> $null
+        if ($LASTEXITCODE -eq 0) { return }
+    }
 
     $headers = @{ Accept = 'application/vnd.github+json'; 'User-Agent' = 'workstation-bootstrap' }
     $release = Invoke-RestMethod 'https://api.github.com/repos/reyamira/pass-cli/releases/latest' -Headers $headers
@@ -86,14 +101,8 @@ function Install-PassCli {
         if (-not $expected -or $actual -ne $expected) { throw 'pass-cli checksum verification failed.' }
         tar -xzf $archive -C $temporary
         $binary = Get-ChildItem $temporary -Filter 'pass-cli.exe' -Recurse | Select-Object -First 1
-        $bin = Join-Path $env:LOCALAPPDATA 'Programs\pass-cli'
         New-Item -ItemType Directory -Force -Path $bin | Out-Null
         Copy-Item $binary.FullName (Join-Path $bin 'pass-cli.exe') -Force
-        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-        if (($userPath -split ';') -notcontains $bin) {
-            [Environment]::SetEnvironmentVariable('Path', (($userPath.TrimEnd(';'), $bin) -join ';'), 'User')
-        }
-        $env:Path = "$bin;$env:Path"
     }
     finally {
         if (Test-Path $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
@@ -105,18 +114,55 @@ function Initialize-Vault {
     if (-not (rclone listremotes 2>$null | Select-String '^onedrive:$')) {
         Write-Host 'Configure an rclone remote named onedrive. OAuth interaction is expected.'
         rclone config
+        if (-not (rclone listremotes 2>$null | Select-String '^onedrive:$')) { throw 'The required onedrive rclone remote is still missing.' }
     }
     if (-not (Test-Path (Join-Path $HOME '.pass-cli\vault.enc'))) {
         Write-Host 'Connect pass-cli to the existing onedrive:.pass-cli vault when prompted.'
         pass-cli init
+        if ($LASTEXITCODE -ne 0) { throw 'pass-cli vault initialization failed.' }
+    }
+    $vaultConfig = @(
+        (Join-Path $HOME '.pass-cli\config.yml')
+        (Join-Path $HOME '.pass-cli\config.yaml')
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $syncConfigured = $vaultConfig -and
+        (Select-String -LiteralPath $vaultConfig -Pattern '^\s*enabled:\s*true\s*$' -Quiet) -and
+        (Select-String -LiteralPath $vaultConfig -Pattern '^\s*remote:\s*onedrive:\.pass-cli\s*$' -Quiet)
+    if (-not $syncConfigured) {
+        Write-Host 'Configure pass-cli sync for onedrive:.pass-cli when prompted.'
+        pass-cli sync enable
+        if ($LASTEXITCODE -ne 0) { throw 'pass-cli sync configuration failed.' }
+    }
+    $keychainStatus = pass-cli keychain status 2>&1 | Out-String
+    if ($keychainStatus -notmatch 'Password Stored:\s+Yes') {
+        pass-cli keychain enable
+        if ($LASTEXITCODE -ne 0) { throw 'pass-cli keychain configuration failed.' }
     }
     pass-cli doctor
+    if ($LASTEXITCODE -ne 0) { throw 'pass-cli health validation failed.' }
+}
+
+function Sync-Dotfiles {
+    $sourcePath = (chezmoi source-path).Trim()
+    if (Test-Path -LiteralPath (Join-Path $sourcePath '.git')) {
+        chezmoi git -- pull --ff-only
+        if ($LASTEXITCODE -ne 0) { throw 'Could not refresh the dotfiles repository.' }
+        chezmoi apply
+        if ($LASTEXITCODE -ne 0) { throw 'Could not apply the refreshed dotfiles repository.' }
+        return
+    }
+    chezmoi init --apply "https://github.com/$GitHubOwner/$DotfilesRepository.git"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the dotfiles repository.' }
 }
 
 function Initialize-GitHub {
     gh auth status 2>$null
-    if ($LASTEXITCODE -ne 0) { gh auth login --hostname github.com --web --git-protocol ssh }
+    if ($LASTEXITCODE -ne 0) {
+        gh auth login --hostname github.com --web --git-protocol ssh
+        if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication failed.' }
+    }
     gh auth setup-git
+    if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI credential-helper configuration failed.' }
 }
 
 function Initialize-OpenSshAgent {
@@ -178,9 +224,11 @@ function Initialize-NodeLts {
 
 $sourceRoot = Get-SourceRoot
 
-Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
+if (-not $CoreReady) {
+    Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
+}
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault
+    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady
     exit $LASTEXITCODE
 }
 if ($Profile -in @('developer', 'optional')) {
@@ -195,21 +243,35 @@ if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
 Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
 Invoke-Phase 'dotfiles-windows' {
-    chezmoi init --apply "https://github.com/$GitHubOwner/$DotfilesRepository.git"
+    Sync-Dotfiles
 }
 if ($Profile -in @('developer', 'optional')) {
     Invoke-Phase 'agent-skills' { Restore-AgentSkills }
 }
 Invoke-Phase 'windows-config' {
     Copy-Item (Join-Path $sourceRoot 'config\wslconfig') (Join-Path $HOME '.wslconfig') -Force
-    if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) { oh-my-posh font install CascadiaCode }
-    Get-Content (Join-Path $sourceRoot 'config\vscode-extensions.txt') | ForEach-Object { code --install-extension $_ --force }
+    $fontInstalled = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\Windows\Fonts\*", "$env:WINDIR\Fonts\*" -Include 'CascadiaCode*', 'CaskaydiaCove*' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $fontInstalled -and (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) {
+        oh-my-posh font install CascadiaCode
+        if ($LASTEXITCODE -ne 0) { throw 'Prompt font installation failed.' }
+    }
+    Get-Content (Join-Path $sourceRoot 'config\vscode-extensions.txt') | ForEach-Object {
+        code --install-extension $_ --force
+        if ($LASTEXITCODE -ne 0) { throw "VS Code extension installation failed: $_" }
+    }
 }
 if ($Profile -in @('developer', 'optional')) {
     Invoke-Phase 'wsl-linux' {
-        wsl --install -d Ubuntu --no-launch
+        $ubuntuDistribution = @(wsl.exe --list --quiet) | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^Ubuntu(?:-|$)' } | Select-Object -First 1
+        $ubuntuInstalled = [bool]$ubuntuDistribution
+        if (-not $ubuntuInstalled) {
+            wsl --install -d Ubuntu --no-launch
+            if ($LASTEXITCODE -ne 0) { throw 'Ubuntu installation failed or requires a reboot; rerun bootstrap afterward.' }
+            $ubuntuDistribution = 'Ubuntu'
+        }
         $payload = if ($Profile -eq 'core') { 'profile' } else { 'developer' }
-        wsl -d Ubuntu -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
+        wsl -d $ubuntuDistribution -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
+        if ($LASTEXITCODE -ne 0) { throw "Linux bootstrap failed in WSL distribution $ubuntuDistribution." }
     }
 }
 
