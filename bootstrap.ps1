@@ -26,13 +26,28 @@ function Get-SourceRoot {
     $sourceRoot = Join-Path $stateDirectory 'source'
     $archive = Join-Path $stateDirectory 'source.zip'
     New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
-    Invoke-WebRequest "https://github.com/$GitHubOwner/$repository/archive/refs/heads/main.zip" -OutFile $archive -UseBasicParsing
+    $commit = Invoke-RestMethod "https://api.github.com/repos/$GitHubOwner/$repository/commits/main" -Headers @{ 'User-Agent' = $repository } -UseBasicParsing
+    $revision = $commit.sha
+    Invoke-WebRequest "https://github.com/$GitHubOwner/$repository/archive/$revision.zip" -OutFile $archive -UseBasicParsing
     Expand-Archive -LiteralPath $archive -DestinationPath $stateDirectory -Force
-    $expanded = Join-Path $stateDirectory "$repository-main"
+    $expanded = Join-Path $stateDirectory "$repository-$revision"
     if (Test-Path $sourceRoot) { Remove-Item -LiteralPath $sourceRoot -Recurse -Force }
     Move-Item -LiteralPath $expanded -Destination $sourceRoot
+    Set-Content -LiteralPath (Join-Path $sourceRoot 'source-revision.txt') -Value $revision -Encoding ascii
     Remove-Item -LiteralPath $archive -Force
     return $sourceRoot
+}
+
+function Get-SourceRevision([string]$SourceRoot) {
+    $revisionPath = Join-Path $SourceRoot 'source-revision.txt'
+    if (Test-Path -LiteralPath $revisionPath) {
+        return (Get-Content -LiteralPath $revisionPath -Raw).Trim().Substring(0, 7)
+    }
+    if (Get-Command git.exe -ErrorAction SilentlyContinue) {
+        $revision = (& git.exe -C $SourceRoot rev-parse --short=7 HEAD 2>$null | Select-Object -First 1)
+        if ($LASTEXITCODE -eq 0 -and $revision) { return $revision.Trim() }
+    }
+    return 'unknown'
 }
 
 function Test-IsAdministrator {
@@ -43,16 +58,27 @@ function Test-IsAdministrator {
 
 function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     $quote = { param([string]$Value) "'$($Value.Replace("'", "''"))'" }
-    $command = @(
-        "& $(& $quote (Join-Path $SourceRoot 'bootstrap.ps1'))"
+    $bootstrapCommand = @(
+        '& powershell.exe -NoProfile -ExecutionPolicy Bypass -File'
+        "$(& $quote (Join-Path $SourceRoot 'bootstrap.ps1'))"
         "-Profile $(& $quote $Profile)"
         "-GitHubOwner $(& $quote $GitHubOwner)"
         "-DotfilesRepository $(& $quote $DotfilesRepository)"
         "-ExpectedUserProfile $(& $quote $env:USERPROFILE)"
         '-Elevated'
     )
-    if ($SkipVault) { $command += '-SkipVault' }
-    if ($CoreReady) { $command += '-CoreReady' }
+    if ($SkipVault) { $bootstrapCommand += '-SkipVault' }
+    if ($CoreReady) { $bootstrapCommand += '-CoreReady' }
+    $logPath = Join-Path $stateDirectory 'bootstrap-elevated.log'
+    $command = @(
+        "Start-Transcript -LiteralPath $(& $quote $logPath) -Force"
+        '`$exitCode = 1'
+        "try { $($bootstrapCommand -join ' '); `$exitCode = `$LASTEXITCODE }"
+        'catch { Write-Error $_ }'
+        'finally { Stop-Transcript -ErrorAction SilentlyContinue }'
+        "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode. Log: $logPath`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
+        'exit $exitCode'
+    )
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($command -join ' ')))
     Write-Host '[elevate] Approve the single UAC prompt for workstation and package configuration.'
     $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded
@@ -277,6 +303,8 @@ function Initialize-NodeLts {
 }
 
 $sourceRoot = Get-SourceRoot
+$sourceRevision = Get-SourceRevision $sourceRoot
+Write-Host "[version] workstation-bootstrap @$sourceRevision"
 
 if (-not (Test-IsAdministrator)) {
     if ($Elevated) { throw 'The elevated bootstrap did not receive an administrator token.' }
@@ -291,7 +319,8 @@ if (-not $CoreReady) {
 }
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -Elevated -ExpectedUserProfile $env:USERPROFILE
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) { throw "PowerShell 7 bootstrap continuation failed with exit code $LASTEXITCODE." }
+    return
 }
 if ($Profile -in @('developer', 'optional')) {
     Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') 'developer' }

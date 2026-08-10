@@ -73,6 +73,21 @@ Describe 'bootstrap contract' {
         ([regex]::Matches($script:Bootstrap, '-Verb RunAs')).Count | Should Be 1
         $script:Bootstrap | Should Match 'ExpectedUserProfile'
         $script:Bootstrap | Should Match 'UAC elevation changed the user profile'
+        $script:Bootstrap | Should Match 'bootstrap-elevated\.log'
+        $script:Bootstrap | Should Match 'Start-Transcript'
+        $script:Bootstrap | Should Match 'Read-Host[^\r\n]*Press Enter to close'
+    }
+
+    It 'returns control to the elevated wrapper when the PowerShell 7 continuation fails' {
+        $script:Bootstrap | Should Match 'PowerShell 7 bootstrap continuation failed'
+        $script:Bootstrap | Should Not Match 'exit \$LASTEXITCODE'
+    }
+
+    It 'pins downloaded source and reports its short commit hash' {
+        $script:Bootstrap | Should Match 'repos/\$GitHubOwner/\$repository/commits/main'
+        $script:Bootstrap | Should Match 'source-revision\.txt'
+        $script:Bootstrap | Should Match '\[version\] workstation-bootstrap @'
+        $script:Bootstrap | Should Match 'archive/\$revision\.zip'
     }
 
     It 'restores locked agent skills after applying dotfiles for developer profiles' {

@@ -18,6 +18,9 @@ The script leaves the Windows Documents known-folder pointer unchanged. It can
 start under the inbox Windows PowerShell 5.1. It downloads its reviewed source,
 requests one UAC approval, verifies that elevation retained the originating
 user profile, installs the core tools, and then continues under PowerShell 7.
+It prints the pinned seven-character Git revision as it starts. If the elevated
+run fails, its window remains open and the complete transcript is retained at
+`%LOCALAPPDATA%\WorkstationBootstrap\bootstrap-elevated.log`.
 Chezmoi installs tiny loaders for both engines at
 their resolved profile paths, regardless of whether Documents is local or
 protected by OneDrive. Each loader sources the real configuration at the local
