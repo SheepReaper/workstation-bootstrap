@@ -68,6 +68,8 @@ Describe 'bootstrap contract' {
     It 'requests elevation once and preserves the originating user profile' {
         $script:Bootstrap | Should Match 'function Test-IsAdministrator'
         $script:Bootstrap | Should Match 'Start-Process powershell\.exe -Verb RunAs'
+        $script:Bootstrap | Should Match "ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand'"
+        $script:Bootstrap | Should Match 'pwsh[^\r\n]*-ExecutionPolicy Bypass[^\r\n]*-File'
         ([regex]::Matches($script:Bootstrap, '-Verb RunAs')).Count | Should Be 1
         $script:Bootstrap | Should Match 'ExpectedUserProfile'
         $script:Bootstrap | Should Match 'UAC elevation changed the user profile'

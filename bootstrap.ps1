@@ -55,7 +55,7 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     if ($CoreReady) { $command += '-CoreReady' }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($command -join ' ')))
     Write-Host '[elevate] Approve the single UAC prompt for workstation and package configuration.'
-    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
+    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded
     exit $process.ExitCode
 }
 
@@ -290,7 +290,7 @@ if (-not $CoreReady) {
     Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
 }
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -Elevated -ExpectedUserProfile $env:USERPROFILE
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -Elevated -ExpectedUserProfile $env:USERPROFILE
     exit $LASTEXITCODE
 }
 if ($Profile -in @('developer', 'optional')) {
