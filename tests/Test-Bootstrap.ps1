@@ -36,4 +36,10 @@ Describe 'bootstrap contract' {
     It 'does not redirect the Windows Documents known folder' {
         $script:Bootstrap | Should Not Match 'User Shell Folders|Set-ItemProperty[^\r\n]*Personal'
     }
+
+    It 'bootstraps from Windows PowerShell and then relaunches under PowerShell 7' {
+        $script:Bootstrap | Should Match '\$PSVersionTable\.PSVersion\.Major -lt 7'
+        $script:Bootstrap | Should Match 'pwsh[^\r\n]*-NoProfile[^\r\n]*-File'
+        $script:Bootstrap | Should Match 'Invoke-WebRequest[^\r\n]*-UseBasicParsing'
+    }
 }

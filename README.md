@@ -14,10 +14,11 @@ For a non-default profile, download the script and invoke it with
 `-Profile core` or `-Profile optional`. Progress is journaled under
 `%LOCALAPPDATA%\WorkstationBootstrap`; rerunning safely resumes completed phases.
 
-The script leaves the Windows Documents known-folder pointer unchanged. Chezmoi
-installs a tiny loader at the profile paths reported by PowerShell, regardless of
-whether Documents is local or protected by OneDrive. The loader redirects the
-startup flow to the real configuration at the local
+The script leaves the Windows Documents known-folder pointer unchanged. It can
+start under the inbox Windows PowerShell 5.1, installs the core tools, and then
+continues under PowerShell 7. Chezmoi installs tiny loaders for both engines at
+their resolved profile paths, regardless of whether Documents is local or
+protected by OneDrive. Each loader sources the real configuration at the local
 `%USERPROFILE%\.config\powershell\profile.ps1` file without modifying the
 automatic `$PROFILE` variable.
 

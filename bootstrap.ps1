@@ -23,7 +23,7 @@ function Get-SourceRoot {
     $sourceRoot = Join-Path $stateDirectory 'source'
     $archive = Join-Path $stateDirectory 'source.zip'
     New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
-    Invoke-WebRequest "https://github.com/$GitHubOwner/$repository/archive/refs/heads/main.zip" -OutFile $archive
+    Invoke-WebRequest "https://github.com/$GitHubOwner/$repository/archive/refs/heads/main.zip" -OutFile $archive -UseBasicParsing
     Expand-Archive -LiteralPath $archive -DestinationPath $stateDirectory -Force
     $expanded = Join-Path $stateDirectory "$repository-main"
     if (Test-Path $sourceRoot) { Remove-Item -LiteralPath $sourceRoot -Recurse -Force }
@@ -79,8 +79,8 @@ function Install-PassCli {
     try {
         $archive = Join-Path $temporary $asset.name
         $checksumFile = Join-Path $temporary 'checksums.txt'
-        Invoke-WebRequest $asset.browser_download_url -OutFile $archive
-        Invoke-WebRequest $checksums.browser_download_url -OutFile $checksumFile
+        Invoke-WebRequest $asset.browser_download_url -OutFile $archive -UseBasicParsing
+        Invoke-WebRequest $checksums.browser_download_url -OutFile $checksumFile -UseBasicParsing
         $expected = (Get-Content $checksumFile | Where-Object { $_ -match [regex]::Escape($asset.name) } | Select-Object -First 1).Split()[0]
         $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash
         if (-not $expected -or $actual -ne $expected) { throw 'pass-cli checksum verification failed.' }
@@ -138,6 +138,10 @@ function Initialize-OpenSshAgent {
 $sourceRoot = Get-SourceRoot
 
 Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault
+    exit $LASTEXITCODE
+}
 if ($Profile -in @('developer', 'optional')) {
     Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') }
 }
