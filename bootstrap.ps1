@@ -5,7 +5,9 @@ param(
     [string]$GitHubOwner = 'SheepReaper',
     [string]$DotfilesRepository = 'dotfiles',
     [switch]$SkipVault,
-    [switch]$CoreReady
+    [switch]$CoreReady,
+    [switch]$Elevated,
+    [string]$ExpectedUserProfile
 )
 
 Set-StrictMode -Version Latest
@@ -31,6 +33,30 @@ function Get-SourceRoot {
     Move-Item -LiteralPath $expanded -Destination $sourceRoot
     Remove-Item -LiteralPath $archive -Force
     return $sourceRoot
+}
+
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-ElevatedBootstrap([string]$SourceRoot) {
+    $quote = { param([string]$Value) "'$($Value.Replace("'", "''"))'" }
+    $command = @(
+        "& $(& $quote (Join-Path $SourceRoot 'bootstrap.ps1'))"
+        "-Profile $(& $quote $Profile)"
+        "-GitHubOwner $(& $quote $GitHubOwner)"
+        "-DotfilesRepository $(& $quote $DotfilesRepository)"
+        "-ExpectedUserProfile $(& $quote $env:USERPROFILE)"
+        '-Elevated'
+    )
+    if ($SkipVault) { $command += '-SkipVault' }
+    if ($CoreReady) { $command += '-CoreReady' }
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($command -join ' ')))
+    Write-Host '[elevate] Approve the single UAC prompt for workstation and package configuration.'
+    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
+    exit $process.ExitCode
 }
 
 function Get-State {
@@ -128,13 +154,27 @@ function Install-PassCli {
     }
 }
 
+function Protect-RcloneConfig {
+    $configOutput = @(rclone config file 2>$null)
+    $configPath = $configOutput | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Last 1
+    if (-not $configPath) { throw 'Could not locate the rclone configuration file.' }
+
+    $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & icacls.exe $configPath /inheritance:r | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not disable inherited access on rclone.conf.' }
+    & icacls.exe $configPath /grant:r "*${userSid}:(F)" '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not restrict access to rclone.conf.' }
+}
+
 function Initialize-Vault {
     if ($SkipVault) { return }
     if (-not (rclone listremotes 2>$null | Select-String '^onedrive:$')) {
-        Write-Host 'Configure an rclone remote named onedrive. OAuth interaction is expected.'
+        Write-Host 'One-time setup: create an rclone remote named onedrive. OAuth interaction is expected.'
         rclone config
         if (-not (rclone listremotes 2>$null | Select-String '^onedrive:$')) { throw 'The required onedrive rclone remote is still missing.' }
     }
+    Protect-RcloneConfig
     if (-not (Test-Path (Join-Path $HOME '.pass-cli\vault.enc'))) {
         Write-Host 'Connect pass-cli to the existing onedrive:.pass-cli vault when prompted.'
         pass-cli init
@@ -191,13 +231,9 @@ function Initialize-OpenSshAgent {
     $needsService = -not $service -or $service.StartType -eq 'Disabled' -or $service.Status -ne 'Running'
     if (-not $needsClient -and -not $needsService) { return }
 
-    $commands = @()
-    if ($needsClient) { $commands += "Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'" }
-    $commands += "Set-Service -Name ssh-agent -StartupType Automatic"
-    $commands += "Start-Service -Name ssh-agent"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes(($commands -join '; ')))
-    $process = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
-    if ($process.ExitCode -ne 0) { throw 'OpenSSH client/agent configuration failed.' }
+    if ($needsClient) { Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0' | Out-Null }
+    Set-Service -Name ssh-agent -StartupType Automatic
+    Start-Service -Name ssh-agent
 }
 
 function Restore-AgentSkills {
@@ -234,20 +270,27 @@ function Initialize-NodeLts {
     $nvm = Get-Command nvm.exe -ErrorAction SilentlyContinue
     if (-not $nvm) { throw 'NVM for Windows is unavailable after the developer package phase.' }
 
-    $nvmPath = $nvm.Source.Replace("'", "''")
-    $commands = "& '$nvmPath' install lts; if (`$LASTEXITCODE -ne 0) { exit `$LASTEXITCODE }; & '$nvmPath' use lts; exit `$LASTEXITCODE"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($commands))
-    $process = Start-Process pwsh.exe -Verb RunAs -Wait -PassThru -ArgumentList '-NoProfile', '-EncodedCommand', $encoded
-    if ($process.ExitCode -ne 0) { throw 'NVM failed to install and activate the current Node.js LTS release.' }
+    & $nvm.Source install lts
+    if ($LASTEXITCODE -ne 0) { throw 'NVM failed to install the current Node.js LTS release.' }
+    & $nvm.Source use lts
+    if ($LASTEXITCODE -ne 0) { throw 'NVM failed to activate the current Node.js LTS release.' }
 }
 
 $sourceRoot = Get-SourceRoot
+
+if (-not (Test-IsAdministrator)) {
+    if ($Elevated) { throw 'The elevated bootstrap did not receive an administrator token.' }
+    Invoke-ElevatedBootstrap $sourceRoot
+}
+if ($ExpectedUserProfile -and -not [string]::Equals($env:USERPROFILE, $ExpectedUserProfile, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "UAC elevation changed the user profile from '$ExpectedUserProfile' to '$env:USERPROFILE'. Sign in with an administrator account instead of supplying another account at UAC."
+}
 
 if (-not $CoreReady) {
     Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
 }
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady
+    & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -Elevated -ExpectedUserProfile $env:USERPROFILE
     exit $LASTEXITCODE
 }
 if ($Profile -in @('developer', 'optional')) {

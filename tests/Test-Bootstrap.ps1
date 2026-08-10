@@ -65,6 +65,14 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'Invoke-WebRequest[^\r\n]*-UseBasicParsing'
     }
 
+    It 'requests elevation once and preserves the originating user profile' {
+        $script:Bootstrap | Should Match 'function Test-IsAdministrator'
+        $script:Bootstrap | Should Match 'Start-Process powershell\.exe -Verb RunAs'
+        ([regex]::Matches($script:Bootstrap, '-Verb RunAs')).Count | Should Be 1
+        $script:Bootstrap | Should Match 'ExpectedUserProfile'
+        $script:Bootstrap | Should Match 'UAC elevation changed the user profile'
+    }
+
     It 'restores locked agent skills after applying dotfiles for developer profiles' {
         $script:Bootstrap | Should Match 'if \(\$Profile -in @\(''developer'', ''optional''\)\)'
         $script:Bootstrap | Should Match 'npx(?:\.cmd)?[^\r\n]*--yes[^\r\n]*skills[^\r\n]*install[^\r\n]*-g'
@@ -87,6 +95,15 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'pass-cli sync enable'
         $script:Bootstrap | Should Match 'pass-cli keychain enable'
         $script:Bootstrap | Should Match 'onedrive:\.pass-cli'
+    }
+
+    It 'configures the rclone remote once and restricts its local OAuth config' {
+        $script:Bootstrap | Should Match 'rclone listremotes'
+        $script:Bootstrap | Should Match "Select-String '\^onedrive:\$'"
+        $script:Bootstrap | Should Match 'One-time setup: create an rclone remote named onedrive'
+        $script:Bootstrap | Should Match 'function Protect-RcloneConfig'
+        $script:Bootstrap | Should Match 'rclone config file'
+        $script:Bootstrap | Should Match 'icacls\.exe'
     }
 
     It 'only installs the prompt font when it is absent' {

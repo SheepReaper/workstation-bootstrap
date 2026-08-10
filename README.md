@@ -15,8 +15,10 @@ For a non-default profile, download the script and invoke it with
 `%LOCALAPPDATA%\WorkstationBootstrap`; rerunning safely resumes completed phases.
 
 The script leaves the Windows Documents known-folder pointer unchanged. It can
-start under the inbox Windows PowerShell 5.1, installs the core tools, and then
-continues under PowerShell 7. Chezmoi installs tiny loaders for both engines at
+start under the inbox Windows PowerShell 5.1. It downloads its reviewed source,
+requests one UAC approval, verifies that elevation retained the originating
+user profile, installs the core tools, and then continues under PowerShell 7.
+Chezmoi installs tiny loaders for both engines at
 their resolved profile paths, regardless of whether Documents is local or
 protected by OneDrive. Each loader sources the real configuration at the local
 `%USERPROFILE%\.config\powershell\profile.ps1` file without modifying the
@@ -57,10 +59,14 @@ The configuration path remains preferred and is retried on the next run.
 ## Security boundaries
 
 - pass-cli is the only component synchronized through OneDrive, via rclone.
+- A fresh Windows user completes OneDrive OAuth once in `rclone config`; reruns
+  detect the local `onedrive:` remote and skip setup. Bootstrap restricts the
+  unencrypted local OAuth configuration to that user, SYSTEM, and Administrators.
 - pass-cli release archives are verified against the release checksum file.
 - Existing SSH keys and links are never rotated, moved, revoked, or deleted.
 - The WSL SSH socket relays the Windows OpenSSH agent through npiperelay.
 
-The OpenSSH agent service is enabled through a narrowly scoped elevated
-PowerShell process. Bootstrap never imports keys into the agent automatically;
+Bootstrap runs its Windows reconciliation under the single approved elevated
+process, so package installers, WSL, NVM, and the OpenSSH agent do not each
+request UAC. Bootstrap never imports keys into the agent automatically;
 resident-key recovery and enrollment remain interactive operations.
