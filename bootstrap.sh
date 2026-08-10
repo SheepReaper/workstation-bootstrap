@@ -49,7 +49,7 @@ if [ "$payload" = developer ]; then
     case " $os_id $os_like " in
         *" debian "*|*" ubuntu "*)
             sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gh git git-lfs jq openssh-client rclone ripgrep socat unzip
+            sudo apt-get install -y ca-certificates curl gh git git-lfs jq nodejs npm openssh-client rclone ripgrep socat unzip
             ;;
         *" openwrt "*)
             opkg update
@@ -81,4 +81,11 @@ fi
 command -v gh >/dev/null 2>&1 && gh auth setup-git || true
 
 chezmoi init --apply "https://github.com/${github_owner}/${dotfiles_repository}.git"
+if [ "$payload" = developer ]; then
+    if command -v npx >/dev/null 2>&1; then
+        npx --yes skills install -g
+    else
+        printf '%s\n' 'Skipping agent skill restoration because npx is unavailable on this platform.' >&2
+    fi
+fi
 printf '%s\n' 'Linux profile applied. Existing SSH keys and links were not changed.'

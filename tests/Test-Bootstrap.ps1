@@ -42,4 +42,11 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'pwsh[^\r\n]*-NoProfile[^\r\n]*-File'
         $script:Bootstrap | Should Match 'Invoke-WebRequest[^\r\n]*-UseBasicParsing'
     }
+
+    It 'restores locked agent skills after applying dotfiles for developer profiles' {
+        $script:Bootstrap | Should Match 'if \(\$Profile -in @\(''developer'', ''optional''\)\)'
+        $script:Bootstrap | Should Match 'npx(?:\.cmd)?[^\r\n]*--yes[^\r\n]*skills[^\r\n]*install[^\r\n]*-g'
+        $script:Bootstrap.IndexOf("Invoke-Phase 'agent-skills'") |
+            Should BeGreaterThan $script:Bootstrap.IndexOf("Invoke-Phase 'dotfiles-windows'")
+    }
 }

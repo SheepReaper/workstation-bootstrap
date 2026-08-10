@@ -32,6 +32,11 @@ Pass `profile` for shell/Git configuration only or `developer` for the supported
 Ubuntu/Debian toolset. OpenWrt receives its compatible lightweight packages and
 profile; unsupported architectures skip pass-cli with a warning.
 
+Developer restores run `npx skills install -g` after chezmoi applies the private
+dotfiles repository and its `~/.agents/.skill-lock.json`. Platforms without
+Node.js, including the lightweight OpenWrt path, skip dependency restoration
+while still applying the portable agent files managed directly by chezmoi.
+
 ## Security boundaries
 
 - pass-cli is the only component synchronized through OneDrive, via rclone.

@@ -135,6 +135,26 @@ function Initialize-OpenSshAgent {
     if ($process.ExitCode -ne 0) { throw 'OpenSSH client/agent configuration failed.' }
 }
 
+function Restore-AgentSkills {
+    $lockPath = Join-Path $HOME '.agents\.skill-lock.json'
+    if (-not (Test-Path -LiteralPath $lockPath)) {
+        throw "Agent skill lockfile was not applied by chezmoi: $lockPath"
+    }
+
+    $npx = Get-Command npx.cmd -ErrorAction SilentlyContinue
+    if (-not $npx) {
+        $env:Path = @(
+            [Environment]::GetEnvironmentVariable('Path', 'Machine')
+            [Environment]::GetEnvironmentVariable('Path', 'User')
+        ) -join ';'
+        $npx = Get-Command npx.cmd -ErrorAction SilentlyContinue
+    }
+    if (-not $npx) { throw 'npx is unavailable after installing the developer package profile.' }
+
+    & $npx.Source --yes skills install -g
+    if ($LASTEXITCODE -ne 0) { throw 'Agent skill restoration failed.' }
+}
+
 $sourceRoot = Get-SourceRoot
 
 Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
@@ -154,6 +174,9 @@ Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
 Invoke-Phase 'dotfiles-windows' {
     chezmoi init --apply "https://github.com/$GitHubOwner/$DotfilesRepository.git"
+}
+if ($Profile -in @('developer', 'optional')) {
+    Invoke-Phase 'agent-skills' { Restore-AgentSkills }
 }
 Invoke-Phase 'windows-config' {
     Copy-Item (Join-Path $sourceRoot 'config\wslconfig') (Join-Path $HOME '.wslconfig') -Force
