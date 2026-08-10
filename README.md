@@ -19,8 +19,8 @@ start under the inbox Windows PowerShell 5.1. It downloads its reviewed source,
 requests one UAC approval, verifies that elevation retained the originating
 user profile, installs the core tools, and then continues under PowerShell 7.
 It prints the pinned seven-character Git revision as it starts. If the elevated
-run fails, its window remains open and the complete transcript is retained at
-`%LOCALAPPDATA%\WorkstationBootstrap\bootstrap-elevated.log`.
+run fails, its window remains open so the error can be inspected. Interactive
+secret and OAuth setup is deliberately not transcribed.
 Chezmoi installs tiny loaders for both engines at
 their resolved profile paths, regardless of whether Documents is local or
 protected by OneDrive. Each loader sources the real configuration at the local
@@ -67,6 +67,10 @@ The configuration path remains preferred and is retried on the next run.
   unencrypted local OAuth configuration to that user, SYSTEM, and Administrators.
 - pass-cli release archives are verified against the release checksum file.
 - Existing SSH keys and links are never rotated, moved, revoked, or deleted.
+- On a native local `.ssh` directory, bootstrap restores the primary Git
+  YubiKey resident-key handle from pass-cli, restricts its ACL, and loads it
+  into the Windows OpenSSH agent before GitHub authentication. Legacy linked
+  `.ssh` directories are detected and left untouched.
 - The WSL SSH socket relays the Windows OpenSSH agent through npiperelay.
 
 Bootstrap runs its Windows reconciliation under the single approved elevated

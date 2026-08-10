@@ -73,9 +73,8 @@ Describe 'bootstrap contract' {
         ([regex]::Matches($script:Bootstrap, '-Verb RunAs')).Count | Should Be 1
         $script:Bootstrap | Should Match 'ExpectedUserProfile'
         $script:Bootstrap | Should Match 'UAC elevation changed the user profile'
-        $script:Bootstrap | Should Match 'bootstrap-elevated\.log'
         $script:Bootstrap | Should Match 'bootstrap-elevated\.ps1'
-        $script:Bootstrap | Should Match 'Start-Transcript'
+        $script:Bootstrap | Should Not Match 'Start-Transcript'
         $script:Bootstrap | Should Match 'Read-Host[^\r\n]*Press Enter to close'
         $script:Bootstrap | Should Match '\$command -join "`r`n"'
     }
@@ -83,6 +82,23 @@ Describe 'bootstrap contract' {
     It 'returns control to the elevated wrapper when the PowerShell 7 continuation fails' {
         $script:Bootstrap | Should Match 'PowerShell 7 bootstrap continuation failed'
         $script:Bootstrap | Should Not Match 'exit \$LASTEXITCODE'
+    }
+
+    It 'configures OpenSSH before GitHub without prompting to generate a key' {
+        $script:Bootstrap.IndexOf("Invoke-Phase 'openssh-agent'") |
+            Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'github'")
+        $script:Bootstrap | Should Match 'gh auth login[^\r\n]*--skip-ssh-key'
+        $script:Bootstrap | Should Match 'dism\.exe[^\r\n]*OpenSSH\.Client'
+        $script:Bootstrap | Should Not Match 'Get-WindowsCapability'
+    }
+
+    It 'restores the primary Git YubiKey handle from pass-cli before GitHub authentication' {
+        $script:Bootstrap | Should Match 'function Restore-GitSshIdentity'
+        $script:Bootstrap | Should Match 'ssh-key/id_ed25519_sk_rk_git-primary_'
+        $script:Bootstrap | Should Match 'FromBase64String'
+        $script:Bootstrap | Should Match 'ssh-add\.exe'
+        $script:Bootstrap.IndexOf("Invoke-Phase 'ssh-identity'") |
+            Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'github'")
     }
 
     It 'pins downloaded source and reports its short commit hash' {

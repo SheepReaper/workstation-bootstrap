@@ -69,14 +69,11 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     )
     if ($SkipVault) { $bootstrapCommand += '-SkipVault' }
     if ($CoreReady) { $bootstrapCommand += '-CoreReady' }
-    $logPath = Join-Path $stateDirectory 'bootstrap-elevated.log'
     $command = @(
-        "Start-Transcript -LiteralPath $(& $quote $logPath) -Force"
         '$exitCode = 1'
         "try { $($bootstrapCommand -join ' '); `$exitCode = `$LASTEXITCODE }"
         'catch { Write-Error $_ }'
-        'finally { Stop-Transcript -ErrorAction SilentlyContinue }'
-        "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode. Log: $logPath`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
+        "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode.`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
         'exit $exitCode'
     )
     $wrapperPath = Join-Path $stateDirectory 'bootstrap-elevated.ps1'
@@ -245,7 +242,7 @@ function Sync-Dotfiles {
 function Initialize-GitHub {
     gh auth status 2>$null
     if ($LASTEXITCODE -ne 0) {
-        gh auth login --hostname github.com --web --git-protocol ssh
+        gh auth login --hostname github.com --web --git-protocol ssh --skip-ssh-key
         if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication failed.' }
     }
     gh auth setup-git
@@ -253,15 +250,63 @@ function Initialize-GitHub {
 }
 
 function Initialize-OpenSshAgent {
-    $client = Get-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0'
-    $needsClient = $client.State -ne 'Installed'
-    $service = Get-Service ssh-agent -ErrorAction SilentlyContinue
-    $needsService = -not $service -or $service.StartType -eq 'Disabled' -or $service.Status -ne 'Running'
-    if (-not $needsClient -and -not $needsService) { return }
+    $sshPath = Join-Path $env:WINDIR 'System32\OpenSSH\ssh.exe'
+    if (-not (Test-Path -LiteralPath $sshPath)) {
+        Write-Host 'Installing the Windows OpenSSH Client capability...'
+        & dism.exe /Online /Add-Capability /CapabilityName:OpenSSH.Client~~~~0.0.1.0 /NoRestart
+        if ($LASTEXITCODE -ne 0) { throw "DISM failed to install OpenSSH Client (exit code $LASTEXITCODE)." }
+    }
+    if (-not (Test-Path -LiteralPath $sshPath)) { throw "OpenSSH Client is still unavailable: $sshPath" }
 
-    if ($needsClient) { Add-WindowsCapability -Online -Name 'OpenSSH.Client~~~~0.0.1.0' | Out-Null }
+    $service = Get-Service ssh-agent -ErrorAction SilentlyContinue
+    if (-not $service) { throw 'The Windows ssh-agent service is unavailable after installing OpenSSH Client.' }
     Set-Service -Name ssh-agent -StartupType Automatic
-    Start-Service -Name ssh-agent
+    if ($service.Status -ne 'Running') {
+        Write-Host 'Starting the Windows OpenSSH agent...'
+        Start-Service -Name ssh-agent
+        $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(15))
+    }
+}
+
+function Restore-GitSshIdentity {
+    $services = @(pass-cli --offline list --quiet 2>$null)
+    if ($LASTEXITCODE -ne 0) { throw 'Could not list SSH identities in pass-cli.' }
+    $gitIdentities = @($services | Where-Object { $_ -match '^ssh-key/id_ed25519_sk_rk_git-primary_' })
+    if (-not $gitIdentities) {
+        Write-Warning 'No primary Git YubiKey handle exists in pass-cli; GitHub login will continue without generating a replacement key.'
+        return
+    }
+
+    $sshDirectory = Join-Path $HOME '.ssh'
+    if (Test-Path -LiteralPath $sshDirectory) {
+        $directory = Get-Item -LiteralPath $sshDirectory -Force
+        if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Write-Warning "Preserving legacy linked SSH directory; automatic key restoration skipped: $sshDirectory"
+            return
+        }
+    }
+    else {
+        New-Item -ItemType Directory -Path $sshDirectory | Out-Null
+    }
+
+    $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & icacls.exe $sshDirectory /inheritance:r /grant:r "*${userSid}:(OI)(CI)(F)" '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not restrict SSH directory permissions: $sshDirectory" }
+    foreach ($serviceName in $gitIdentities) {
+        $fileName = $serviceName.Substring('ssh-key/'.Length)
+        $target = Join-Path $sshDirectory $fileName
+        if (-not (Test-Path -LiteralPath $target)) {
+            Write-Host "Restoring hardware-backed Git identity handle: $fileName"
+            $encodedKey = (pass-cli --offline get $serviceName --field password --quiet --no-clipboard | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0 -or -not $encodedKey) { throw "Could not retrieve $serviceName from pass-cli." }
+            try { [IO.File]::WriteAllBytes($target, [Convert]::FromBase64String($encodedKey)) }
+            finally { $encodedKey = $null }
+        }
+        & icacls.exe $target /inheritance:r /grant:r "*${userSid}:(F)" '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Could not restrict SSH identity permissions: $target" }
+        & (Join-Path $env:WINDIR 'System32\OpenSSH\ssh-add.exe') $target
+        if ($LASTEXITCODE -ne 0) { throw "Could not load the restored Git identity into ssh-agent: $target" }
+    }
 }
 
 function Restore-AgentSkills {
@@ -333,8 +378,9 @@ if ($Profile -eq 'optional') {
 }
 Invoke-Phase 'pass-cli' { Install-PassCli }
 if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
-Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
+if (-not $SkipVault) { Invoke-Phase 'ssh-identity' { Restore-GitSshIdentity } }
+Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'dotfiles-windows' {
     Sync-Dotfiles
 }
