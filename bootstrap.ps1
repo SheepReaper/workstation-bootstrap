@@ -17,6 +17,13 @@ $ProgressPreference = 'SilentlyContinue'
 $repository = 'workstation-bootstrap'
 $stateDirectory = Join-Path $env:LOCALAPPDATA 'WorkstationBootstrap'
 $statePath = Join-Path $stateDirectory 'bootstrap-state.json'
+$statusLogPath = Join-Path $stateDirectory 'bootstrap-status.log'
+
+function Write-BootstrapStatus([string]$Message) {
+    New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
+    $line = '{0:o} {1}' -f [DateTimeOffset]::Now, $Message
+    Add-Content -LiteralPath $statusLogPath -Value $line -Encoding utf8
+}
 
 function Get-SourceRoot {
     if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot 'config'))) {
@@ -73,7 +80,7 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
         '$exitCode = 1'
         "try { $($bootstrapCommand -join ' '); `$exitCode = `$LASTEXITCODE }"
         'catch { Write-Error $_ }'
-        "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode.`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
+        "if (`$exitCode -ne 0) { Write-Host ''; Write-Host `"Bootstrap failed with exit code `$exitCode. Status log: $statusLogPath`" -ForegroundColor Red; Read-Host 'Press Enter to close this window' | Out-Null }"
         'exit $exitCode'
     )
     $wrapperPath = Join-Path $stateDirectory 'bootstrap-elevated.ps1'
@@ -101,10 +108,16 @@ function Invoke-Phase([string]$Name, [scriptblock]$Action) {
     $state = Get-State
     $label = if ($state.CompletedPhases -contains $Name) { 'refresh' } else { 'run ' }
     Write-Host "[$label] $Name"
-    & $Action
+    Write-BootstrapStatus "phase=$Name state=started"
+    try { & $Action }
+    catch {
+        Write-BootstrapStatus "phase=$Name state=failed type=$($_.Exception.GetType().FullName)"
+        throw
+    }
     $state = Get-State
     $state.CompletedPhases = @($state.CompletedPhases) + $Name | Select-Object -Unique
     Save-State $state
+    Write-BootstrapStatus "phase=$Name state=completed"
 }
 
 function Invoke-WinGetPackageFallback([string]$PackageProfile) {
@@ -269,8 +282,11 @@ function Initialize-OpenSshAgent {
 }
 
 function Restore-GitSshIdentity {
+    Write-Host 'Unlocking pass-cli to restore the primary Git identity. Enter the vault master password if prompted.'
+    Write-BootstrapStatus 'ssh-identity step=list-vault-identities state=started'
     $services = @(pass-cli --offline list --quiet 2>$null)
     if ($LASTEXITCODE -ne 0) { throw 'Could not list SSH identities in pass-cli.' }
+    Write-BootstrapStatus 'ssh-identity step=list-vault-identities state=completed'
     $gitIdentities = @($services | Where-Object { $_ -match '^ssh-key/id_ed25519_sk_rk_git-primary_' })
     if (-not $gitIdentities) {
         Write-Warning 'No primary Git YubiKey handle exists in pass-cli; GitHub login will continue without generating a replacement key.'
@@ -297,15 +313,21 @@ function Restore-GitSshIdentity {
         $target = Join-Path $sshDirectory $fileName
         if (-not (Test-Path -LiteralPath $target)) {
             Write-Host "Restoring hardware-backed Git identity handle: $fileName"
+            Write-BootstrapStatus 'ssh-identity step=read-encrypted-entry state=started'
             $encodedKey = (pass-cli --offline get $serviceName --field password --quiet --no-clipboard | Out-String).Trim()
             if ($LASTEXITCODE -ne 0 -or -not $encodedKey) { throw "Could not retrieve $serviceName from pass-cli." }
             try { [IO.File]::WriteAllBytes($target, [Convert]::FromBase64String($encodedKey)) }
             finally { $encodedKey = $null }
+            Write-BootstrapStatus 'ssh-identity step=materialize-handle state=completed'
         }
+        Write-BootstrapStatus 'ssh-identity step=restrict-acl state=started'
         & icacls.exe $target /inheritance:r /grant:r "*${userSid}:(F)" '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Could not restrict SSH identity permissions: $target" }
+        Write-Host 'Loading the restored identity into Windows ssh-agent. Insert or touch the primary YubiKey if requested.'
+        Write-BootstrapStatus 'ssh-identity step=ssh-add state=started'
         & (Join-Path $env:WINDIR 'System32\OpenSSH\ssh-add.exe') $target
         if ($LASTEXITCODE -ne 0) { throw "Could not load the restored Git identity into ssh-agent: $target" }
+        Write-BootstrapStatus 'ssh-identity step=ssh-add state=completed'
     }
 }
 

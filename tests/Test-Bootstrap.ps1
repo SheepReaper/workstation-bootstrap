@@ -16,6 +16,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'bootstrap-state.json'
         $script:Bootstrap | Should Match 'CompletedPhases'
         $script:Bootstrap | Should Not Match 'GITHUB_TOKEN\s*='
+        $script:Bootstrap | Should Match 'bootstrap-status\.log'
+        $script:Bootstrap | Should Match 'function Write-BootstrapStatus'
     }
 
     It 'reconciles completed phases instead of permanently skipping them' {
@@ -97,6 +99,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'ssh-key/id_ed25519_sk_rk_git-primary_'
         $script:Bootstrap | Should Match 'FromBase64String'
         $script:Bootstrap | Should Match 'ssh-add\.exe'
+        $script:Bootstrap | Should Match 'Unlocking pass-cli to restore the primary Git identity'
+        $script:Bootstrap | Should Match 'Loading the restored identity into Windows ssh-agent'
         $script:Bootstrap.IndexOf("Invoke-Phase 'ssh-identity'") |
             Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'github'")
     }

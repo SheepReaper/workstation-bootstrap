@@ -20,7 +20,9 @@ requests one UAC approval, verifies that elevation retained the originating
 user profile, installs the core tools, and then continues under PowerShell 7.
 It prints the pinned seven-character Git revision as it starts. If the elevated
 run fails, its window remains open so the error can be inspected. Interactive
-secret and OAuth setup is deliberately not transcribed.
+secret and OAuth setup is deliberately not transcribed. A secret-free phase and
+step journal is retained at
+`%LOCALAPPDATA%\WorkstationBootstrap\bootstrap-status.log`.
 Chezmoi installs tiny loaders for both engines at
 their resolved profile paths, regardless of whether Documents is local or
 protected by OneDrive. Each loader sources the real configuration at the local
