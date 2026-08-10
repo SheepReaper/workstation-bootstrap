@@ -56,11 +56,30 @@ function Invoke-Phase([string]$Name, [scriptblock]$Action) {
     Save-State $state
 }
 
-function Invoke-WinGetConfiguration([string]$Path) {
+function Invoke-WinGetPackageFallback([string]$PackageProfile) {
+    $manifest = Import-PowerShellDataFile (Join-Path $sourceRoot 'config\packages.psd1')
+    foreach ($packageId in $manifest[$PackageProfile]) {
+        if ($packageId -eq 'CoreyButler.NVMforWindows') {
+            winget install --id $packageId --exact --version 1.2.2 --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+        }
+        else {
+            winget install --id $packageId --exact --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+        }
+        if ($LASTEXITCODE -ne 0) {
+            winget list --id $packageId --exact --source winget --accept-source-agreements | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "WinGet fallback installation failed: $packageId" }
+        }
+    }
+}
+
+function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
     & winget configure validate --file $Path
     if ($LASTEXITCODE -ne 0) { throw "Invalid WinGet configuration: $Path" }
     & winget configure --file $Path --accept-configuration-agreements --disable-interactivity
-    if ($LASTEXITCODE -ne 0) { throw "WinGet configuration failed: $Path" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "WinGet Configuration failed; reconciling curated packages directly for '$PackageProfile'."
+        Invoke-WinGetPackageFallback $PackageProfile
+    }
 }
 
 function Install-PassCli {
@@ -225,18 +244,18 @@ function Initialize-NodeLts {
 $sourceRoot = Get-SourceRoot
 
 if (-not $CoreReady) {
-    Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') }
+    Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
 }
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     & pwsh -NoProfile -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady
     exit $LASTEXITCODE
 }
 if ($Profile -in @('developer', 'optional')) {
-    Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') }
+    Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') 'developer' }
     Invoke-Phase 'node-lts' { Initialize-NodeLts }
 }
 if ($Profile -eq 'optional') {
-    Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') }
+    Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') 'optional' }
 }
 Invoke-Phase 'pass-cli' { Install-PassCli }
 if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }

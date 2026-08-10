@@ -49,6 +49,11 @@ only repair missing or stale state. The local phase journal records successful
 progress for reboot/interruption diagnosis but never permanently suppresses a
 future refresh.
 
+If a clean Windows image can validate a WinGet Configuration but its DSC
+processor cannot import `Microsoft.WinGet.DSC`, bootstrap falls back to
+idempotent direct `winget install` calls using the same curated package groups.
+The configuration path remains preferred and is retried on the next run.
+
 ## Security boundaries
 
 - pass-cli is the only component synchronized through OneDrive, via rclone.

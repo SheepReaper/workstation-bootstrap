@@ -34,6 +34,14 @@ Describe 'bootstrap contract' {
         $script:Packages | Should Match 'Rclone\.Rclone'
     }
 
+    It 'falls back to curated direct WinGet installs when DSC cannot load' {
+        $script:Bootstrap | Should Match 'Invoke-WinGetPackageFallback'
+        $script:Bootstrap | Should Match 'WinGet Configuration failed; reconciling curated packages directly'
+        $script:Bootstrap | Should Match 'winget install --id \$packageId --exact'
+        $script:Packages | Should Match 'CoreyButler\.NVMforWindows'
+        $script:Packages | Should Not Match 'OpenJS\.NodeJS|Microsoft\.OpenSSH\.Beta'
+    }
+
     It 'installs and activates LTS Node through NVM for Windows' {
         $developer = Get-Content -Raw (Join-Path $script:Root 'config/winget/developer.dsc.winget')
         $developer | Should Match 'CoreyButler\.NVMforWindows'

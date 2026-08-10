@@ -25,4 +25,10 @@ properties:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: ripgrep
       settings: { id: BurntSushi.ripgrep.MSVC, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: git-lfs
+      settings: { id: GitHub.GitLFS, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: jq
+      settings: { id: jqlang.jq, source: winget }
   configurationVersion: 0.2.0
