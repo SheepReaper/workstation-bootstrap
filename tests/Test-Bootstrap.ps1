@@ -18,6 +18,10 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Not Match 'GITHUB_TOKEN\s*='
     }
 
+    It 'does not journal the vault phase when vault setup is skipped' {
+        $script:Bootstrap | Should Match 'if \(-not \$SkipVault\) \{ Invoke-Phase ''vault'''
+    }
+
     It 'curates npiperelay and required workstation tools' {
         $script:Packages | Should Match 'jstarks\.npiperelay'
         $script:Packages | Should Match 'twpayne\.chezmoi'

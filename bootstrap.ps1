@@ -157,7 +157,7 @@ if ($Profile -eq 'optional') {
     Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') }
 }
 Invoke-Phase 'pass-cli' { Install-PassCli }
-Invoke-Phase 'vault' { Initialize-Vault }
+if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
 Invoke-Phase 'github' { Initialize-GitHub }
 Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
 Invoke-Phase 'local-documents-profile' { Set-LocalDocumentsKnownFolder }

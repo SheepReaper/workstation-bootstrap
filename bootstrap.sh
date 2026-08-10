@@ -49,7 +49,7 @@ if [ "$payload" = developer ]; then
     case " $os_id $os_like " in
         *" debian "*|*" ubuntu "*)
             sudo apt-get update
-            sudo apt-get install -y ca-certificates curl git git-lfs jq openssh-client rclone ripgrep socat unzip
+            sudo apt-get install -y ca-certificates curl gh git git-lfs jq openssh-client rclone ripgrep socat unzip
             ;;
         *" openwrt "*)
             opkg update
@@ -78,6 +78,7 @@ fi
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
     gh auth login --hostname github.com --web --git-protocol ssh
 fi
+command -v gh >/dev/null 2>&1 && gh auth setup-git || true
 
 chezmoi init --apply "https://github.com/${github_owner}/${dotfiles_repository}.git"
 printf '%s\n' 'Linux profile applied. Existing SSH keys and links were not changed.'
