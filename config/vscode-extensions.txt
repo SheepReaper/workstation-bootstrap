@@ -1,0 +1,16 @@
+anthropic.claude-code
+dbaeumer.vscode-eslint
+docker.docker
+eamodio.gitlens
+editorconfig.editorconfig
+github.vscode-github-actions
+github.vscode-pull-request-github
+ms-azuretools.vscode-containers
+ms-dotnettools.csdevkit
+ms-dotnettools.csharp
+ms-vscode-remote.remote-containers
+ms-vscode-remote.remote-ssh
+ms-vscode-remote.remote-wsl
+ms-vscode.powershell
+openai.chatgpt
+redhat.vscode-yaml

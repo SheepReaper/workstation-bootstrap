@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
+properties:
+  resources:
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: vscode
+      settings: { id: Microsoft.VisualStudioCode, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: dotnet-sdk
+      settings: { id: Microsoft.DotNet.SDK.10, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: python
+      settings: { id: Python.Python.3.13, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: node
+      settings: { id: OpenJS.NodeJS.LTS, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: docker
+      settings: { id: Docker.DockerDesktop, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: wsl
+      settings: { id: Microsoft.WSL, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: ubuntu
+      settings: { id: Canonical.Ubuntu, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: ripgrep
+      settings: { id: BurntSushi.ripgrep.MSVC, source: winget }
+  configurationVersion: 0.2.0

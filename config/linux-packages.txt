@@ -1,0 +1,11 @@
+ca-certificates
+curl
+git
+git-lfs
+gh
+jq
+openssh-client
+rclone
+ripgrep
+socat
+unzip

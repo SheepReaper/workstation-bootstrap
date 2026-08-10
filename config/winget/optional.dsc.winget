@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
+properties:
+  resources:
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: sevenzip
+      settings: { id: 7zip.7zip, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: wireshark
+      settings: { id: WiresharkFoundation.Wireshark, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: cmake
+      settings: { id: Kitware.CMake, source: winget }
+  configurationVersion: 0.2.0

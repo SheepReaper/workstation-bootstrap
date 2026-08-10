@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
+properties:
+  resources:
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: powershell
+      settings: { id: Microsoft.PowerShell, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: git
+      settings: { id: Git.Git, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: github-cli
+      settings: { id: GitHub.cli, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: chezmoi
+      settings: { id: twpayne.chezmoi, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: rclone
+      settings: { id: Rclone.Rclone, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: oh-my-posh
+      settings: { id: JanDeDobbeleer.OhMyPosh, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: terminal
+      settings: { id: Microsoft.WindowsTerminal, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: npiperelay
+      settings: { id: jstarks.npiperelay, source: winget }
+    - resource: Microsoft.WinGet.DSC/WinGetPackage
+      id: yubikey-manager
+      settings: { id: Yubico.YubikeyManager, source: winget }
+  configurationVersion: 0.2.0

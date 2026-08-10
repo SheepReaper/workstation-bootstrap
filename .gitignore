@@ -1,0 +1,7 @@
+.bootstrap/
+*.log
+.env
+.env.*
+*.pem
+*.key
+artifacts/
