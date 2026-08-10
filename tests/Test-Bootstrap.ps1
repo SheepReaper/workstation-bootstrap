@@ -133,6 +133,8 @@ Describe 'bootstrap contract' {
     It 'repairs incomplete pass-cli sync and keychain configuration' {
         $script:Bootstrap | Should Match 'pass-cli sync enable'
         $script:Bootstrap | Should Match 'pass-cli keychain enable'
+        $script:Bootstrap | Should Match 'pass-cli keychain enable --force'
+        $script:Bootstrap | Should Match 'Keychain password storage is still unavailable'
         $script:Bootstrap | Should Match 'onedrive:\.pass-cli'
     }
 

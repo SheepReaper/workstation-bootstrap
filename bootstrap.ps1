@@ -232,8 +232,13 @@ function Initialize-Vault {
     }
     $keychainStatus = pass-cli keychain status 2>&1 | Out-String
     if ($keychainStatus -notmatch 'Password Stored:\s+Yes') {
-        pass-cli keychain enable
+        Write-Host 'Storing the vault password in Windows Credential Manager. Enter the master password when prompted.'
+        pass-cli keychain enable --force
         if ($LASTEXITCODE -ne 0) { throw 'pass-cli keychain configuration failed.' }
+        $keychainStatus = pass-cli keychain status 2>&1 | Out-String
+        if ($keychainStatus -notmatch 'Password Stored:\s+Yes') {
+            throw 'Keychain password storage is still unavailable after pass-cli keychain enable --force.'
+        }
     }
     pass-cli doctor
     if ($LASTEXITCODE -ne 0) { throw 'pass-cli health validation failed.' }
@@ -284,7 +289,7 @@ function Initialize-OpenSshAgent {
 function Restore-GitSshIdentity {
     Write-Host 'Unlocking pass-cli to restore the primary Git identity. Enter the vault master password if prompted.'
     Write-BootstrapStatus 'ssh-identity step=list-vault-identities state=started'
-    $services = @(pass-cli --offline list --quiet 2>$null)
+    $services = @(pass-cli --offline list --quiet)
     if ($LASTEXITCODE -ne 0) { throw 'Could not list SSH identities in pass-cli.' }
     Write-BootstrapStatus 'ssh-identity step=list-vault-identities state=completed'
     $gitIdentities = @($services | Where-Object { $_ -match '^ssh-key/id_ed25519_sk_rk_git-primary_' })
