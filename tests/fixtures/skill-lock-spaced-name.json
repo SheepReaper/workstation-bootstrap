@@ -1,6 +1,10 @@
 {
   "version": 3,
   "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "skillPath": "skills/find-skills/SKILL.md"
+    },
     "GitHub Agentic Workflows": {
       "source": "github/gh-aw"
     }

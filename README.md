@@ -42,7 +42,7 @@ Pass `profile` for shell/Git configuration only or `developer` for the supported
 Ubuntu/Debian toolset. OpenWrt receives its compatible lightweight packages and
 profile; unsupported architectures skip pass-cli with a warning.
 
-Developer restores replay the sources and skill names in the managed global skill
+Developer restores install missing sources and skill names from the managed global skill
 lock after chezmoi applies the private dotfiles repository and its
 `~/.agents/.skill-lock.json`. Platforms without
 Node.js, including the lightweight OpenWrt path, skip dependency restoration
@@ -64,6 +64,9 @@ Before installing Ubuntu, bootstrap enables the Windows Subsystem for Linux and
 Virtual Machine Platform optional components. When Windows requires a restart,
 bootstrap offers to schedule a restart and registers a one-time continuation for
 the next sign-in; declining leaves the machine ready for a manual restart and rerun.
+The one-time post-reboot launch resumes at WSL reconciliation instead of replaying
+the already completed Windows setup. A manually initiated rerun still performs a
+full reconciliation.
 
 Bootstrap probes each curated configuration with the non-mutating `winget
 configure show` command. Clients that can parse and resolve native DSC v3 apply

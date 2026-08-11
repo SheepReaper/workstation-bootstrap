@@ -146,10 +146,28 @@ Describe 'bootstrap contract' {
         $script:SkillRestore | Should Match "'--yes', 'skills', 'add', source, '-g', '-y'"
         $script:SkillRestore | Should Match 'npx-cli\.js'
         $script:SkillRestore | Should Match "'--agent', 'codex'"
+        $script:SkillRestore | Should Match 'already installed'
+        $script:SkillRestore | Should Match "existsSync\(join\(installRoot, candidate, 'SKILL\.md'\)\)"
         $script:SkillRestore | Should Not Match 'ComSpec|cmd\.exe|shell:\s*true'
         $script:Bootstrap | Should Not Match 'skills[^\r\n]*install[^\r\n]*-g'
         $script:Bootstrap.IndexOf("Invoke-Phase 'agent-skills'") |
             Should BeGreaterThan $script:Bootstrap.IndexOf("Invoke-Phase 'dotfiles-windows'")
+    }
+
+    It 'only invokes the skills CLI for missing locked skills' {
+        $node = Get-Command node -ErrorAction Stop
+        $oldNpx = $env:SKILLS_NPX_CLI
+        $oldRoot = $env:SKILLS_INSTALL_ROOT
+        try {
+            $env:SKILLS_NPX_CLI = Join-Path $script:Root 'tests/fixtures/fake-npx-cli.mjs'
+            $env:SKILLS_INSTALL_ROOT = Join-Path $script:Root 'tests/fixtures/installed-skills'
+            & $node.Source (Join-Path $script:Root 'scripts/restore-agent-skills.mjs') (Join-Path $script:Root 'tests/fixtures/skill-lock-spaced-name.json')
+            $LASTEXITCODE | Should Be 0
+        }
+        finally {
+            $env:SKILLS_NPX_CLI = $oldNpx
+            $env:SKILLS_INSTALL_ROOT = $oldRoot
+        }
     }
 
     It 'updates an existing chezmoi checkout before applying it' {
