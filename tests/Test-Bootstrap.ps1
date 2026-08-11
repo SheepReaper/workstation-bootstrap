@@ -71,6 +71,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'function Initialize-ExecutionPolicy'
         $script:Bootstrap | Should Match "@\('RemoteSigned', 'Unrestricted', 'Bypass'\)"
         $script:Bootstrap | Should Match 'Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force'
+        $script:Bootstrap | Should Match 'Get-ExecutionPolicy -Scope LocalMachine'
+        $script:Bootstrap | Should Match 'LocalMachine execution policy was not persisted as RemoteSigned'
         $script:Bootstrap.IndexOf("Invoke-Phase 'execution-policy'") |
             Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'packages-core'")
     }

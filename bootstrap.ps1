@@ -141,7 +141,19 @@ function Initialize-ExecutionPolicy {
     $localMachinePolicy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
     if ($localMachinePolicy -notin $acceptablePolicies) {
         Write-Host "Setting LocalMachine execution policy from $localMachinePolicy to RemoteSigned."
-        Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force
+        try {
+            Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force -ErrorAction Stop
+        }
+        catch {
+            $persistedPolicy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
+            if ($persistedPolicy -ne 'RemoteSigned') { throw }
+            Write-Host 'LocalMachine is RemoteSigned; the current bootstrap process remains Bypass as intended.'
+            Write-BootstrapStatus 'execution-policy persisted=RemoteSigned process-override=expected'
+        }
+        $persistedPolicy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
+        if ($persistedPolicy -ne 'RemoteSigned') {
+            throw "LocalMachine execution policy was not persisted as RemoteSigned (actual: $persistedPolicy)."
+        }
     }
 
     $policyList = Get-ExecutionPolicy -List
