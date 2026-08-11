@@ -177,19 +177,28 @@ function Enable-WinGetConfigurationV3 {
         Get-Content -LiteralPath $settingsPath -Raw
     } else { '' }
 
-    if ($content -match '"configuration03"\s*:\s*true') { return }
-    if ($content -match '"configuration03"\s*:\s*(?:false|null)') {
-        $content = $content -replace '"configuration03"\s*:\s*(?:false|null)', '"configuration03": true'
+    if (-not $content) { $content = '{}' }
+    try { $settings = $content | ConvertFrom-Json -ErrorAction Stop }
+    catch {
+        # Windows PowerShell 5 cannot parse JSON-with-comments. Core packages
+        # still reconcile through the fallback; PowerShell 7 repairs this file
+        # before the developer configuration is applied.
+        if ($PSVersionTable.PSVersion.Major -lt 7) {
+            Write-Warning 'WinGet settings contain comments; deferring configuration03 setup until the PowerShell 7 continuation.'
+            return
+        }
+        throw
     }
-    elseif ($content -match '"experimentalFeatures"\s*:\s*\{') {
-        $content = [regex]::Replace($content, '("experimentalFeatures"\s*:\s*\{)', '$1"configuration03": true,', 1)
+
+    if (-not $settings.experimentalFeatures) {
+        $settings | Add-Member -NotePropertyName experimentalFeatures -NotePropertyValue ([pscustomobject]@{})
     }
-    elseif ($content -match '\{') {
-        $content = [regex]::Replace($content, '\{', '{"experimentalFeatures":{"configuration03":true},', 1)
+    if ($settings.experimentalFeatures.PSObject.Properties.Name -contains 'configuration03') {
+        $settings.experimentalFeatures.configuration03 = $true
+    } else {
+        $settings.experimentalFeatures | Add-Member -NotePropertyName configuration03 -NotePropertyValue $true
     }
-    else {
-        $content = '{"experimentalFeatures":{"configuration03":true}}'
-    }
+    $content = $settings | ConvertTo-Json -Depth 100
 
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
     Set-Content -LiteralPath $settingsPath -Value $content -Encoding utf8
