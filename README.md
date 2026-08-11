@@ -60,12 +60,11 @@ only repair missing or stale state. The local phase journal records successful
 progress for reboot/interruption diagnosis but never permanently suppresses a
 future refresh.
 
-WinGet 1.29's legacy `configure validate` command misclassifies native v3 resources
-as unavailable gallery modules, so bootstrap lets the dscv3 processor validate
-during apply. Bootstrap idempotently enables WinGet's required `configuration03`
-feature in the current user's settings before applying. If it cannot apply a configuration, bootstrap falls back to
-idempotent direct `winget install` calls using the same curated package groups.
-The configuration path remains preferred and is retried on the next run.
+WinGet clients that expose native DSC v3 apply the curated configuration files.
+Clients that report Configuration Schema 0.3 as disabled use idempotent direct
+`winget install` calls with the same curated package groups. This avoids relying
+on an experimental feature that the installed client cannot actually execute;
+the configuration path is retried automatically after WinGet is upgraded.
 
 ## Security boundaries
 

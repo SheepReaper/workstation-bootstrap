@@ -166,49 +166,21 @@ function Initialize-ExecutionPolicy {
     }
 }
 
-function Enable-WinGetConfigurationV3 {
-    $settingsExport = (& winget settings export | Out-String) | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or -not $settingsExport.userSettingsFile) {
-        throw 'Could not locate the WinGet user settings file.'
-    }
-
-    $settingsPath = $settingsExport.userSettingsFile
-    $content = if (Test-Path -LiteralPath $settingsPath) {
-        Get-Content -LiteralPath $settingsPath -Raw
-    } else { '' }
-
-    if (-not $content) { $content = '{}' }
-    try { $settings = $content | ConvertFrom-Json -ErrorAction Stop }
-    catch {
-        # Windows PowerShell 5 cannot parse JSON-with-comments. Core packages
-        # still reconcile through the fallback; PowerShell 7 repairs this file
-        # before the developer configuration is applied.
-        if ($PSVersionTable.PSVersion.Major -lt 7) {
-            Write-Warning 'WinGet settings contain comments; deferring configuration03 setup until the PowerShell 7 continuation.'
-            return
-        }
-        throw
-    }
-
-    if (-not $settings.experimentalFeatures) {
-        $settings | Add-Member -NotePropertyName experimentalFeatures -NotePropertyValue ([pscustomobject]@{})
-    }
-    if ($settings.experimentalFeatures.PSObject.Properties.Name -contains 'configuration03') {
-        $settings.experimentalFeatures.configuration03 = $true
-    } else {
-        $settings.experimentalFeatures | Add-Member -NotePropertyName configuration03 -NotePropertyValue $true
-    }
-    $content = $settings | ConvertTo-Json -Depth 100
-
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
-    Set-Content -LiteralPath $settingsPath -Value $content -Encoding utf8
+function Test-WinGetConfigurationV3 {
+    $features = (& winget features 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return $features -notmatch '(?im)Configuration Schema 0\.3\s+Disabled\s+configuration03'
 }
 
 function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
     # WinGet 1.29's legacy validator attempts to resolve native DSC v3 resources
     # as gallery modules and rejects Microsoft's own Microsoft.WinGet/Package.
     # The dscv3 processor performs schema/resource validation during configure.
-    Enable-WinGetConfigurationV3
+    if (-not (Test-WinGetConfigurationV3)) {
+        Write-Warning "WinGet Configuration v3 is disabled; reconciling curated packages directly for '$PackageProfile'."
+        Invoke-WinGetPackageFallback $PackageProfile
+        return
+    }
     & winget configure --file $Path --accept-configuration-agreements --disable-interactivity
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "WinGet Configuration failed; reconciling curated packages directly for '$PackageProfile'."

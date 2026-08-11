@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
 
 const lockPath = process.argv[2];
 if (!lockPath) throw new Error('Usage: restore-agent-skills.mjs <global-skill-lock>');
@@ -16,29 +17,18 @@ for (const [name, entry] of skills) {
   sources.set(entry.source, names);
 }
 
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const npxCli = process.env.SKILLS_NPX_CLI ??
+  join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
 for (const [source, names] of sources) {
-  const args = ['--yes', 'skills', 'add', source, '-g', '-y'];
+  const args = ['--yes', 'skills', 'add', source, '-g', '-y', '--agent', 'codex'];
   for (const name of names) args.push('--skill', name);
   console.log(`[skills] ${source}: ${names.join(', ')}`);
-  let result;
   if (process.platform === 'win32') {
-    // CreateProcess cannot execute .cmd files directly. Build one quoted cmd
-    // command so names containing spaces remain a single --skill value.
-    const quote = (value) => {
-      if (!/^[A-Za-z0-9._ /@:+-]+$/.test(value)) {
-        throw new Error(`Unsafe character in skill restore argument: ${value}`);
-      }
-      return value.includes(' ') ? `"${value}"` : value;
-    };
-    const command = [npx, ...args].map(quote).join(' ');
-    result = spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', command], {
-      stdio: 'inherit',
-      shell: false,
-    });
-  } else {
-    result = spawnSync(npx, args, { stdio: 'inherit', shell: false });
+    if (!existsSync(npxCli)) throw new Error(`npm's npx CLI was not found: ${npxCli}`);
   }
+  const result = process.platform === 'win32'
+    ? spawnSync(process.execPath, [npxCli, ...args], { stdio: 'inherit', shell: false })
+    : spawnSync('npx', args, { stdio: 'inherit', shell: false });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

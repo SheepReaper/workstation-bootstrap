@@ -21,6 +21,7 @@ grep -q 'nvm alias default lts' "$root/bootstrap.sh"
 ! grep -Eq 'apt-get install .*\b(nodejs|npm)\b' "$root/bootstrap.sh"
 grep -q 'JSON.parse' "$root/scripts/restore-agent-skills.mjs"
 grep -q "'--yes', 'skills', 'add', source, '-g', '-y'" "$root/scripts/restore-agent-skills.mjs"
+grep -q "'--agent', 'codex'" "$root/scripts/restore-agent-skills.mjs"
 ! grep -Eq 'skills .*install .*-g' "$root/bootstrap.sh"
 test "$(grep -n 'chezmoi init --apply' "$root/bootstrap.sh" | cut -d: -f1)" -lt \
     "$(grep -n 'restore-agent-skills' "$root/bootstrap.sh" | cut -d: -f1)"
