@@ -173,6 +173,9 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'VirtualizationFirmwareEnabled|HypervisorPresent'
         $script:Bootstrap | Should Match 'Register-BootstrapResume'
         $script:Bootstrap | Should Match 'CurrentVersion\\RunOnce'
+        $script:Bootstrap | Should Match '\$arguments \+= ''-ResumeAfterReboot'''
+        $script:Bootstrap | Should Match 'if \(-not \$ResumeAfterReboot\)'
+        $script:Bootstrap | Should Match '-ResumeAfterReboot:\$ResumeAfterReboot'
         $script:Bootstrap | Should Match 'shutdown\.exe /r /t'
         $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-prerequisites'") |
             Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-linux'")

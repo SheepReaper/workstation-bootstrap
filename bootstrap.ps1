@@ -6,6 +6,7 @@ param(
     [string]$DotfilesRepository = 'dotfiles',
     [switch]$SkipVault,
     [switch]$CoreReady,
+    [switch]$ResumeAfterReboot,
     [switch]$Elevated,
     [string]$ExpectedUserProfile
 )
@@ -76,6 +77,7 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     )
     if ($SkipVault) { $bootstrapCommand += '-SkipVault' }
     if ($CoreReady) { $bootstrapCommand += '-CoreReady' }
+    if ($ResumeAfterReboot) { $bootstrapCommand += '-ResumeAfterReboot' }
     $command = @(
         '$exitCode = 1'
         "try { $($bootstrapCommand -join ' '); `$exitCode = `$LASTEXITCODE }"
@@ -434,6 +436,7 @@ function Register-BootstrapResume {
         "-DotfilesRepository $DotfilesRepository"
     )
     if ($SkipVault) { $arguments += '-SkipVault' }
+    $arguments += '-ResumeAfterReboot'
     $command = 'powershell.exe ' + ($arguments -join ' ')
     $runOncePath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
     New-Item -Path $runOncePath -Force | Out-Null
@@ -494,34 +497,36 @@ if ($ExpectedUserProfile -and -not [string]::Equals($env:USERPROFILE, $ExpectedU
     throw "UAC elevation changed the user profile from '$ExpectedUserProfile' to '$env:USERPROFILE'. Sign in with an administrator account instead of supplying another account at UAC."
 }
 
-Invoke-Phase 'execution-policy' { Initialize-ExecutionPolicy }
-if (-not $CoreReady) {
-    Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
-}
 if ($PSVersionTable.PSVersion.Major -lt 7) {
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -Elevated -ExpectedUserProfile $env:USERPROFILE
+    if (-not $ResumeAfterReboot) {
+        Invoke-Phase 'execution-policy' { Initialize-ExecutionPolicy }
+        if (-not $CoreReady) {
+            Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
+        }
+    }
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -ResumeAfterReboot:$ResumeAfterReboot -Elevated -ExpectedUserProfile $env:USERPROFILE
     if ($LASTEXITCODE -ne 0) { throw "PowerShell 7 bootstrap continuation failed with exit code $LASTEXITCODE." }
     return
 }
-if ($Profile -in @('developer', 'optional')) {
-    Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') 'developer' }
-    Invoke-Phase 'node-lts' { Initialize-NodeLts }
-}
-if ($Profile -eq 'optional') {
-    Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') 'optional' }
-}
-Invoke-Phase 'pass-cli' { Install-PassCli }
-if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
-Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
-if (-not $SkipVault) { Invoke-Phase 'ssh-identity' { Restore-GitSshIdentity } }
-Invoke-Phase 'github' { Initialize-GitHub }
-Invoke-Phase 'dotfiles-windows' {
-    Sync-Dotfiles
-}
-if ($Profile -in @('developer', 'optional')) {
-    Invoke-Phase 'agent-skills' { Restore-AgentSkills }
-}
-Invoke-Phase 'windows-config' {
+if (-not $ResumeAfterReboot) {
+    Invoke-Phase 'execution-policy' { Initialize-ExecutionPolicy }
+    if ($Profile -in @('developer', 'optional')) {
+        Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') 'developer' }
+        Invoke-Phase 'node-lts' { Initialize-NodeLts }
+    }
+    if ($Profile -eq 'optional') {
+        Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') 'optional' }
+    }
+    Invoke-Phase 'pass-cli' { Install-PassCli }
+    if (-not $SkipVault) { Invoke-Phase 'vault' { Initialize-Vault } }
+    Invoke-Phase 'openssh-agent' { Initialize-OpenSshAgent }
+    if (-not $SkipVault) { Invoke-Phase 'ssh-identity' { Restore-GitSshIdentity } }
+    Invoke-Phase 'github' { Initialize-GitHub }
+    Invoke-Phase 'dotfiles-windows' { Sync-Dotfiles }
+    if ($Profile -in @('developer', 'optional')) {
+        Invoke-Phase 'agent-skills' { Restore-AgentSkills }
+    }
+    Invoke-Phase 'windows-config' {
     Copy-Item (Join-Path $sourceRoot 'config\wslconfig') (Join-Path $HOME '.wslconfig') -Force
     $fontInstalled = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\Windows\Fonts\*", "$env:WINDIR\Fonts\*" -Include 'CascadiaCode*', 'CaskaydiaCove*' -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $fontInstalled -and (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) {
@@ -531,6 +536,7 @@ Invoke-Phase 'windows-config' {
     Get-Content (Join-Path $sourceRoot 'config\vscode-extensions.txt') | ForEach-Object {
         code --install-extension $_ --force
         if ($LASTEXITCODE -ne 0) { throw "VS Code extension installation failed: $_" }
+    }
     }
 }
     if ($Profile -in @('developer', 'optional')) {
