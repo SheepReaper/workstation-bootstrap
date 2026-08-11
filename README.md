@@ -60,11 +60,16 @@ only repair missing or stale state. The local phase journal records successful
 progress for reboot/interruption diagnosis but never permanently suppresses a
 future refresh.
 
-WinGet clients that expose native DSC v3 apply the curated configuration files.
-Clients that report Configuration Schema 0.3 as disabled use idempotent direct
-`winget install` calls with the same curated package groups. This avoids relying
-on an experimental feature that the installed client cannot actually execute;
-the configuration path is retried automatically after WinGet is upgraded.
+Before installing Ubuntu, bootstrap enables the Windows Subsystem for Linux and
+Virtual Machine Platform optional components. When Windows requires a restart,
+bootstrap offers to schedule a restart and registers a one-time continuation for
+the next sign-in; declining leaves the machine ready for a manual restart and rerun.
+
+Bootstrap probes each curated configuration with the non-mutating `winget
+configure show` command. Clients that can parse and resolve native DSC v3 apply
+the file; other clients use idempotent direct `winget install` calls with the
+same curated package groups. The configuration path is retried automatically
+after WinGet is upgraded.
 
 ## Security boundaries
 

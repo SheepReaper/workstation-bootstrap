@@ -167,16 +167,16 @@ function Initialize-ExecutionPolicy {
 }
 
 function Test-WinGetConfigurationV3 {
-    $features = (& winget features 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) { return $false }
-    return $features -notmatch '(?im)Configuration Schema 0\.3\s+Disabled\s+configuration03'
+    param([string]$Path)
+    & winget configure show --file $Path --disable-interactivity *> $null
+    return $LASTEXITCODE -eq 0
 }
 
 function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
     # WinGet 1.29's legacy validator attempts to resolve native DSC v3 resources
     # as gallery modules and rejects Microsoft's own Microsoft.WinGet/Package.
     # The dscv3 processor performs schema/resource validation during configure.
-    if (-not (Test-WinGetConfigurationV3)) {
+    if (-not (Test-WinGetConfigurationV3 $Path)) {
         Write-Warning "WinGet Configuration v3 is disabled; reconciling curated packages directly for '$PackageProfile'."
         Invoke-WinGetPackageFallback $PackageProfile
         return
@@ -424,6 +424,43 @@ function Initialize-NodeLts {
     if ($LASTEXITCODE -ne 0) { throw 'NVM failed to activate the current Node.js LTS release.' }
 }
 
+function Register-BootstrapResume {
+    $arguments = @(
+        '-NoProfile'
+        '-ExecutionPolicy Bypass'
+        "-File `"$(Join-Path $sourceRoot 'bootstrap.ps1')`""
+        "-Profile $Profile"
+        "-GitHubOwner $GitHubOwner"
+        "-DotfilesRepository $DotfilesRepository"
+    )
+    if ($SkipVault) { $arguments += '-SkipVault' }
+    $command = 'powershell.exe ' + ($arguments -join ' ')
+    $runOncePath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+    New-Item -Path $runOncePath -Force | Out-Null
+    Set-ItemProperty -Path $runOncePath -Name WorkstationBootstrapResume -Value $command
+    Write-BootstrapStatus 'wsl-prerequisites resume=registered'
+}
+
+function Initialize-WslPrerequisites {
+    $restartRequired = $false
+    foreach ($featureName in 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform') {
+        $feature = Get-WindowsOptionalFeature -Online -FeatureName $featureName
+        if ($feature.State -eq 'Enabled') { continue }
+        if ($feature.State -eq 'EnablePending') {
+            $restartRequired = $true
+            continue
+        }
+
+        Write-Host "Enabling required Windows feature: $featureName"
+        & dism.exe /online /enable-feature "/featurename:$featureName" /all /norestart
+        if ($LASTEXITCODE -notin @(0, 3010)) {
+            throw "DISM could not enable $featureName (exit code $LASTEXITCODE)."
+        }
+        $restartRequired = $true
+    }
+    return $restartRequired
+}
+
 $sourceRoot = Get-SourceRoot
 $sourceRevision = Get-SourceRevision $sourceRoot
 Write-Host "[version] workstation-bootstrap @$sourceRevision"
@@ -475,8 +512,26 @@ Invoke-Phase 'windows-config' {
         if ($LASTEXITCODE -ne 0) { throw "VS Code extension installation failed: $_" }
     }
 }
-if ($Profile -in @('developer', 'optional')) {
-    Invoke-Phase 'wsl-linux' {
+    if ($Profile -in @('developer', 'optional')) {
+        $script:wslRestartRequired = $false
+        Invoke-Phase 'wsl-prerequisites' {
+            $script:wslRestartRequired = Initialize-WslPrerequisites
+        }
+        if ($script:wslRestartRequired) {
+            Write-Host 'Windows must restart before Ubuntu can be installed.' -ForegroundColor Yellow
+            $restartNow = Read-Host 'Restart now and resume bootstrap after sign-in? [y/N]'
+            if ($restartNow -match '^(?i)y(?:es)?$') {
+                Register-BootstrapResume
+                Write-Host 'Restarting in 15 seconds. Bootstrap will relaunch after you sign in.'
+                & shutdown.exe /r /t 15 /c 'Restarting to finish WSL 2 prerequisites'
+                if ($LASTEXITCODE -ne 0) { throw 'Windows restart scheduling failed.' }
+            }
+            else {
+                Write-Host 'Restart Windows, then rerun the bootstrap command to continue.' -ForegroundColor Yellow
+            }
+            return
+        }
+        Invoke-Phase 'wsl-linux' {
         $ubuntuDistribution = @(wsl.exe --list --quiet) | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^Ubuntu(?:-|$)' } | Select-Object -First 1
         $ubuntuInstalled = [bool]$ubuntuDistribution
         if (-not $ubuntuInstalled) {

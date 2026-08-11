@@ -56,7 +56,7 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match '--disable-interactivity'
         $script:Bootstrap | Should Not Match 'configure validate --file'
         $script:Bootstrap | Should Match 'function Test-WinGetConfigurationV3'
-        $script:Bootstrap | Should Match 'Configuration Schema 0\\\.3\\s\+Disabled\\s\+configuration03'
+        $script:Bootstrap | Should Match 'configure show --file \$Path'
         $script:Bootstrap | Should Match 'WinGet Configuration v3 is disabled; reconciling curated packages directly'
     }
 
@@ -161,6 +161,17 @@ Describe 'bootstrap contract' {
     It 'does not reinstall an existing Ubuntu distribution' {
         $script:Bootstrap | Should Match 'wsl[^\r\n]*--list[^\r\n]*--quiet'
         $script:Bootstrap | Should Match 'if \(-not \$ubuntuInstalled\)'
+    }
+
+    It 'enables WSL 2 prerequisites and resumes across the required reboot' {
+        $script:Bootstrap | Should Match 'Microsoft-Windows-Subsystem-Linux'
+        $script:Bootstrap | Should Match 'VirtualMachinePlatform'
+        $script:Bootstrap | Should Match 'dism\.exe[^\r\n]*/enable-feature[^\r\n]*/norestart'
+        $script:Bootstrap | Should Match 'Register-BootstrapResume'
+        $script:Bootstrap | Should Match 'CurrentVersion\\RunOnce'
+        $script:Bootstrap | Should Match 'shutdown\.exe /r /t'
+        $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-prerequisites'") |
+            Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-linux'")
     }
 
     It 'repairs incomplete pass-cli sync and keychain configuration' {
