@@ -586,7 +586,9 @@ if (-not $ResumeAfterReboot) {
     }
     Invoke-Phase 'windows-config' {
     Copy-Item (Join-Path $sourceRoot 'config\wslconfig') (Join-Path $HOME '.wslconfig') -Force
-    $fontInstalled = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\Windows\Fonts\*", "$env:WINDIR\Fonts\*" -Include 'CascadiaCode*', 'CaskaydiaCove*' -ErrorAction SilentlyContinue | Select-Object -First 1
+    # Ordinary Cascadia Code ships with Windows/Terminal but does not contain
+    # the Nerd Font glyphs requested by the managed Terminal settings.
+    $fontInstalled = Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\Windows\Fonts\*", "$env:WINDIR\Fonts\*" -Include 'CaskaydiaCoveNerdFont*' -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $fontInstalled -and (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) {
         oh-my-posh font install CascadiaCode
         if ($LASTEXITCODE -ne 0) { throw 'Prompt font installation failed.' }

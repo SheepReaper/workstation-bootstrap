@@ -238,7 +238,9 @@ Describe 'bootstrap contract' {
     }
 
     It 'only installs the prompt font when it is absent' {
-        $script:Bootstrap | Should Match 'CascadiaCode[^\r\n]*-ErrorAction SilentlyContinue'
+        $script:Bootstrap | Should Match "-Include 'CaskaydiaCoveNerdFont\*'"
+        $script:Bootstrap | Should Match 'oh-my-posh font install CascadiaCode'
+        $script:Bootstrap | Should Not Match "-Include 'CascadiaCode\*'"
     }
 
     It 'propagates failures from external reconciliation commands' {
