@@ -189,22 +189,11 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'chezmoi apply'
     }
 
-    It 'does not reinstall an existing Ubuntu distribution' {
-        $script:Bootstrap | Should Match 'wsl[^\r\n]*--list[^\r\n]*--quiet'
-        $script:Bootstrap | Should Match '-replace "`0", '''''
-        $script:Bootstrap | Should Match 'if \(-not \$ubuntuInstalled\)'
-    }
-
-    It 'never runs the Linux bootstrap as the WSL root account' {
-        $script:Bootstrap | Should Match 'function Get-OrCreate-WslUser'
-        $script:Bootstrap | Should Match "\$currentUser -ne 'root'"
-        $script:Bootstrap | Should Match 'getent passwd 1000'
-        $script:Bootstrap | Should Match '\$uid1000Result = @\(& wsl\.exe'
-        $script:Bootstrap | Should Not Match '\(getent passwd 1000[^\r\n]+\)\.Trim\(\)'
-        $script:Bootstrap | Should Match 'useradd --create-home --shell /bin/bash'
-        $script:Bootstrap | Should Match 'usermod --append --groups sudo'
-        $script:Bootstrap | Should Match 'wsl -d \$ubuntuDistribution --user \$linuxUser -- sh -lc'
-        $script:Bootstrap | Should Match 'sh -lc "cd ~ && curl'
+    It 'leaves WSL distro initialization to the standalone Linux bootstrap' {
+        $script:Bootstrap | Should Not Match "Invoke-Phase 'wsl-linux'"
+        $script:Bootstrap | Should Not Match 'wsl(?:\.exe)? -d'
+        $script:Bootstrap | Should Match 'Launch Ubuntu, finish its first-run user setup'
+        $script:Bootstrap | Should Match 'bootstrap\.sh'
     }
 
     It 'enables WSL 2 prerequisites and resumes across the required reboot' {
@@ -221,8 +210,6 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'if \(-not \$ResumeAfterReboot\)'
         $script:Bootstrap | Should Match '-ResumeAfterReboot:\$ResumeAfterReboot'
         $script:Bootstrap | Should Match 'shutdown\.exe /r /t'
-        $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-prerequisites'") |
-            Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'wsl-linux'")
     }
 
     It 'repairs incomplete pass-cli sync and keychain configuration' {
@@ -251,6 +238,5 @@ Describe 'bootstrap contract' {
     It 'propagates failures from external reconciliation commands' {
         $script:Bootstrap | Should Match 'GitHub CLI credential-helper configuration failed'
         $script:Bootstrap | Should Match 'VS Code extension installation failed'
-        $script:Bootstrap | Should Match 'Linux bootstrap failed in WSL'
     }
 }

@@ -520,34 +520,6 @@ function Initialize-WslPrerequisites {
     return $restartRequired
 }
 
-function Get-OrCreate-WslUser([string]$Distribution) {
-    $currentUser = (& wsl.exe -d $Distribution -- sh -lc 'id -un').Trim()
-    if ($LASTEXITCODE -ne 0) { throw "Could not determine the default user for $Distribution." }
-    if ($currentUser -ne 'root') { return $currentUser }
-
-    $uid1000Result = @(& wsl.exe -d $Distribution --user root -- sh -lc "getent passwd 1000 | cut -d: -f1")
-    $uid1000User = $uid1000Result | Where-Object { $_ } | Select-Object -First 1
-    if ($uid1000User) { $uid1000User = $uid1000User.Trim() }
-    if ($LASTEXITCODE -eq 0 -and $uid1000User) { return $uid1000User }
-
-    $suggestedUser = (Split-Path -Leaf $env:USERPROFILE).ToLowerInvariant() -replace '[^a-z0-9_-]', ''
-    if ($suggestedUser -notmatch '^[a-z_][a-z0-9_-]*$') { $suggestedUser = 'developer' }
-    $linuxUser = Read-Host "Ubuntu needs a non-root Linux account. Username [$suggestedUser]"
-    if (-not $linuxUser) { $linuxUser = $suggestedUser }
-    if ($linuxUser -notmatch '^[a-z_][a-z0-9_-]*$') {
-        throw "Invalid Linux username '$linuxUser'. Use lowercase letters, digits, underscores, and hyphens."
-    }
-
-    & wsl.exe -d $Distribution --user root -- useradd --create-home --shell /bin/bash $linuxUser
-    if ($LASTEXITCODE -ne 0) { throw "Could not create Linux user $linuxUser in $Distribution." }
-    & wsl.exe -d $Distribution --user root -- usermod --append --groups sudo $linuxUser
-    if ($LASTEXITCODE -ne 0) { throw "Could not grant sudo access to Linux user $linuxUser." }
-    Write-Host "Set the sudo password for Linux user $linuxUser."
-    & wsl.exe -d $Distribution --user root -- passwd $linuxUser
-    if ($LASTEXITCODE -ne 0) { throw "Could not set the password for Linux user $linuxUser." }
-    return $linuxUser
-}
-
 $sourceRoot = Get-SourceRoot
 $sourceRevision = Get-SourceRevision $sourceRoot
 Write-Host "[version] workstation-bootstrap @$sourceRevision"
@@ -610,7 +582,7 @@ if (-not $ResumeAfterReboot) {
             $script:wslRestartRequired = Initialize-WslPrerequisites
         }
         if ($script:wslRestartRequired) {
-            Write-Host 'Windows must restart before Ubuntu can be installed.' -ForegroundColor Yellow
+            Write-Host 'Windows must restart before WSL and Ubuntu can be used.' -ForegroundColor Yellow
             $restartNow = Read-Host 'Restart now and resume bootstrap after sign-in? [y/N]'
             if ($restartNow -match '^(?i)y(?:es)?$') {
                 Register-BootstrapResume
@@ -623,22 +595,10 @@ if (-not $ResumeAfterReboot) {
             }
             return
         }
-        Invoke-Phase 'wsl-linux' {
-        $ubuntuDistribution = @(wsl.exe --list --quiet) |
-            ForEach-Object { ($_ -replace "`0", '').Trim() } |
-            Where-Object { $_ -match '^Ubuntu(?:-|$)' } |
-            Select-Object -First 1
-        $ubuntuInstalled = [bool]$ubuntuDistribution
-        if (-not $ubuntuInstalled) {
-            wsl --install -d Ubuntu --no-launch
-            if ($LASTEXITCODE -ne 0) { throw 'Ubuntu installation failed or requires a reboot; rerun bootstrap afterward.' }
-            $ubuntuDistribution = 'Ubuntu'
-        }
-        $linuxUser = Get-OrCreate-WslUser $ubuntuDistribution
-        $payload = if ($WorkstationProfile -eq 'core') { 'profile' } else { 'developer' }
-        wsl -d $ubuntuDistribution --user $linuxUser -- sh -lc "cd ~ && curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
-        if ($LASTEXITCODE -ne 0) { throw "Linux bootstrap failed in WSL distribution $ubuntuDistribution." }
-    }
+        Write-Host ''
+        Write-Host 'WSL and Ubuntu are installed, but Linux configuration is intentionally separate.' -ForegroundColor Cyan
+        Write-Host 'Launch Ubuntu, finish its first-run user setup, then run:' -ForegroundColor Cyan
+        Write-Host "sh -c `"`$(curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh)`"" -ForegroundColor Yellow
 }
 
 Write-Host 'Workstation bootstrap is complete. Existing SSH keys and links were not changed.'

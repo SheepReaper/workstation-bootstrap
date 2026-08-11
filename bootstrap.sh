@@ -21,6 +21,15 @@ if [ -r /etc/os-release ]; then
     os_like=${ID_LIKE:-}
 fi
 
+is_wsl=false
+if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+    is_wsl=true
+    if [ "$(id -u)" -eq 0 ]; then
+        printf '%s\n' 'Run bootstrap.sh from the regular WSL user created by Ubuntu first-run setup, not as root.' >&2
+        exit 1
+    fi
+fi
+
 install_pass_cli() {
     command -v pass-cli >/dev/null 2>&1 && pass-cli version >/dev/null 2>&1 && return
     arch=$(uname -m)
@@ -146,9 +155,10 @@ case " $os_id $os_like " in
 esac
 initialize_vault
 
-if command -v systemctl >/dev/null 2>&1 && grep -qi microsoft /proc/version 2>/dev/null; then
+if [ "$is_wsl" = true ]; then
     wsl_user=$(id -un)
-    sudo install -m 0644 /dev/stdin /etc/wsl.conf <<EOF
+    wsl_config=$(mktemp)
+    cat >"$wsl_config" <<EOF
 [boot]
 systemd=true
 
@@ -158,6 +168,14 @@ options="metadata,umask=22,fmask=11"
 [user]
 default=$wsl_user
 EOF
+    if [ ! -f /etc/wsl.conf ] || ! cmp -s "$wsl_config" /etc/wsl.conf; then
+        sudo install -m 0644 "$wsl_config" /etc/wsl.conf
+        printf '%s\n' 'WSL settings changed. After bootstrap, run wsl.exe --shutdown from Windows before reopening Ubuntu.'
+    fi
+    rm -f "$wsl_config"
+    if ! command -v npiperelay.exe >/dev/null 2>&1; then
+        printf '%s\n' 'Warning: npiperelay.exe is not visible on the WSL PATH; the Windows OpenSSH agent relay will not start.' >&2
+    fi
 fi
 
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then

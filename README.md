@@ -46,6 +46,12 @@ Pass `profile` for shell/Git configuration only or `developer` for the supported
 Ubuntu/Debian toolset. OpenWrt receives its compatible lightweight packages and
 profile; unsupported architectures skip pass-cli with a warning.
 
+WSL uses this same entrypoint and is intentionally not bootstrapped through the
+Windows process. After Windows setup, launch Ubuntu, complete its normal first-run
+user creation, and run the Linux command above from that regular user. This keeps
+interactive sudo, rclone OAuth, GitHub authentication, and vault prompts attached
+to a real Linux terminal.
+
 Developer restores install missing sources and skill names from the managed global skill
 lock after chezmoi applies the private dotfiles repository and its
 `~/.agents/.skill-lock.json`. Platforms without
@@ -58,23 +64,26 @@ aliases LTS as the default on Ubuntu/Debian.
 Bootstrap is reconciliation-based. Reruns refresh every applicable phase even
 when it previously completed, while each phase checks existing state before
 making changes. WinGet and OS package managers converge packages; existing
-dotfiles repositories are fast-forwarded and applied; existing Ubuntu WSL
-distributions are reused; and pass-cli, fonts, agents, and configuration files
+dotfiles repositories are fast-forwarded and applied; and pass-cli, fonts, agents, and configuration files
 only repair missing or stale state. The local phase journal records successful
 progress for reboot/interruption diagnosis but never permanently suppresses a
 future refresh.
 
-Before installing Ubuntu, bootstrap enables the Windows Subsystem for Linux and
+Before using Ubuntu, bootstrap enables the Windows Subsystem for Linux and
 Virtual Machine Platform optional components. When Windows requires a restart,
 bootstrap offers to schedule a restart and registers a one-time continuation for
 the next sign-in; declining leaves the machine ready for a manual restart and rerun.
 The one-time post-reboot launch resumes at WSL reconciliation instead of replaying
 the already completed Windows setup. A manually initiated rerun still performs a
 full reconciliation.
-After installing Ubuntu with no initial launch, bootstrap creates a regular Linux
-user when the distribution still defaults to `root`; the username and sudo-password
-prompts are the one-time equivalent of Ubuntu's first-launch setup. Existing regular
-default users are reused.
+The Windows package profile installs WSL and Ubuntu but never launches or configures
+the distribution.
+
+Inside WSL, the Linux entrypoint refuses to run as root, manages `/etc/wsl.conf`
+for systemd, metadata mounts, and the current default user, and checks whether
+`npiperelay.exe` is visible for the Windows OpenSSH-agent relay. When `wsl.conf`
+changes, it instructs you to run `wsl.exe --shutdown` from Windows before reopening
+Ubuntu. Native Debian and OpenWrt hosts skip these WSL-only checks.
 
 Bootstrap probes each curated configuration with the non-mutating `winget
 configure show` command. Clients that can parse and resolve native DSC v3 apply
