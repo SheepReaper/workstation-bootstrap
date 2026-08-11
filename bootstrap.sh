@@ -163,7 +163,12 @@ command -v gh >/dev/null 2>&1 && gh auth setup-git || true
 sync_dotfiles
 if [ "$payload" = developer ]; then
     if command -v npx >/dev/null 2>&1; then
-        npx --yes skills install -g
+        skill_restore_script=$(mktemp)
+        trap 'rm -f "$skill_restore_script"' EXIT HUP INT TERM
+        curl -fsLS "https://raw.githubusercontent.com/$github_owner/workstation-bootstrap/main/scripts/restore-agent-skills.mjs" -o "$skill_restore_script"
+        node "$skill_restore_script" "$HOME/.agents/.skill-lock.json"
+        rm -f "$skill_restore_script"
+        trap - EXIT HUP INT TERM
     else
         printf '%s\n' 'Skipping agent skill restoration because npx is unavailable on this platform.' >&2
     fi

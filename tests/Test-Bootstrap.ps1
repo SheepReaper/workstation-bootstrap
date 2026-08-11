@@ -5,6 +5,7 @@ Describe 'bootstrap contract' {
         $script:Root = Split-Path -Parent $PSScriptRoot
         $script:Bootstrap = Get-Content -Raw (Join-Path $script:Root 'bootstrap.ps1')
         $script:Packages = Get-Content -Raw (Join-Path $script:Root 'config/packages.psd1')
+        $script:SkillRestore = Get-Content -Raw (Join-Path $script:Root 'scripts/restore-agent-skills.mjs')
     }
 
     It 'defaults to the developer profile and validates supported profiles' {
@@ -42,6 +43,18 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'winget install --id \$packageId --exact'
         $script:Packages | Should Match 'CoreyButler\.NVMforWindows'
         $script:Packages | Should Not Match 'OpenJS\.NodeJS|Microsoft\.OpenSSH\.Beta'
+    }
+
+    It 'uses native WinGet DSC v3 resources and accepts agreements non-interactively' {
+        foreach ($name in 'core', 'developer', 'optional') {
+            $configuration = Get-Content -Raw (Join-Path $script:Root "config/winget/$name.dsc.winget")
+            $configuration | Should Match 'identifier: dscv3'
+            $configuration | Should Match 'type: Microsoft\.WinGet/Package'
+            $configuration | Should Not Match 'Microsoft\.WinGet\.DSC/WinGetPackage'
+        }
+        $script:Bootstrap | Should Match '--accept-configuration-agreements'
+        $script:Bootstrap | Should Match '--disable-interactivity'
+        $script:Bootstrap | Should Not Match 'configure validate --file'
     }
 
     It 'installs and activates LTS Node through NVM for Windows' {
@@ -126,7 +139,9 @@ Describe 'bootstrap contract' {
 
     It 'restores locked agent skills after applying dotfiles for developer profiles' {
         $script:Bootstrap | Should Match 'if \(\$Profile -in @\(''developer'', ''optional''\)\)'
-        $script:Bootstrap | Should Match 'npx(?:\.cmd)?[^\r\n]*--yes[^\r\n]*skills[^\r\n]*install[^\r\n]*-g'
+        $script:SkillRestore | Should Match 'JSON\.parse'
+        $script:SkillRestore | Should Match "'--yes', 'skills', 'add', source, '-g', '-y'"
+        $script:Bootstrap | Should Not Match 'skills[^\r\n]*install[^\r\n]*-g'
         $script:Bootstrap.IndexOf("Invoke-Phase 'agent-skills'") |
             Should BeGreaterThan $script:Bootstrap.IndexOf("Invoke-Phase 'dotfiles-windows'")
     }

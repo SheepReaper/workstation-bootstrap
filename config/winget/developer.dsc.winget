@@ -1,34 +1,36 @@
-# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
-properties:
-  resources:
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: vscode
-      settings: { id: Microsoft.VisualStudioCode, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: dotnet-sdk
-      settings: { id: Microsoft.DotNet.SDK.10, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: python
-      settings: { id: Python.Python.3.13, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: nvm-windows
-      settings: { id: CoreyButler.NVMforWindows, source: winget, version: 1.2.2 }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: docker
-      settings: { id: Docker.DockerDesktop, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: wsl
-      settings: { id: Microsoft.WSL, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: ubuntu
-      settings: { id: Canonical.Ubuntu, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: ripgrep
-      settings: { id: BurntSushi.ripgrep.MSVC, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: git-lfs
-      settings: { id: GitHub.GitLFS, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: jq
-      settings: { id: jqlang.jq, source: winget }
-  configurationVersion: 0.2.0
+$schema: https://raw.githubusercontent.com/PowerShell/DSC/main/schemas/2023/08/config/document.json
+metadata:
+  winget:
+    processor:
+      identifier: dscv3
+resources:
+  - type: Microsoft.WinGet/Package
+    name: vscode
+    properties: { id: Microsoft.VisualStudioCode, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: dotnet-sdk
+    properties: { id: Microsoft.DotNet.SDK.10, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: python
+    properties: { id: Python.Python.3.13, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: nvm-windows
+    properties: { id: CoreyButler.NVMforWindows, source: winget, version: 1.2.2 }
+  - type: Microsoft.WinGet/Package
+    name: docker
+    properties: { id: Docker.DockerDesktop, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: wsl
+    properties: { id: Microsoft.WSL, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: ubuntu
+    properties: { id: Canonical.Ubuntu, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: ripgrep
+    properties: { id: BurntSushi.ripgrep.MSVC, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: git-lfs
+    properties: { id: GitHub.GitLFS, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: jq
+    properties: { id: jqlang.jq, source: winget, useLatest: true }

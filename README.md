@@ -42,8 +42,9 @@ Pass `profile` for shell/Git configuration only or `developer` for the supported
 Ubuntu/Debian toolset. OpenWrt receives its compatible lightweight packages and
 profile; unsupported architectures skip pass-cli with a warning.
 
-Developer restores run `npx skills install -g` after chezmoi applies the private
-dotfiles repository and its `~/.agents/.skill-lock.json`. Platforms without
+Developer restores replay the sources and skill names in the managed global skill
+lock after chezmoi applies the private dotfiles repository and its
+`~/.agents/.skill-lock.json`. Platforms without
 Node.js, including the lightweight OpenWrt path, skip dependency restoration
 while still applying the portable agent files managed directly by chezmoi.
 Node.js itself is installed through NVM rather than as an unversioned system
@@ -59,8 +60,9 @@ only repair missing or stale state. The local phase journal records successful
 progress for reboot/interruption diagnosis but never permanently suppresses a
 future refresh.
 
-If a clean Windows image can validate a WinGet Configuration but its DSC
-processor cannot import `Microsoft.WinGet.DSC`, bootstrap falls back to
+WinGet 1.29's legacy `configure validate` command misclassifies native v3 resources
+as unavailable gallery modules, so bootstrap lets the dscv3 processor validate
+during apply. If it cannot apply a configuration, bootstrap falls back to
 idempotent direct `winget install` calls using the same curated package groups.
 The configuration path remains preferred and is retried on the next run.
 

@@ -1,13 +1,15 @@
-# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
-properties:
-  resources:
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: sevenzip
-      settings: { id: 7zip.7zip, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: wireshark
-      settings: { id: WiresharkFoundation.Wireshark, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: cmake
-      settings: { id: Kitware.CMake, source: winget }
-  configurationVersion: 0.2.0
+$schema: https://raw.githubusercontent.com/PowerShell/DSC/main/schemas/2023/08/config/document.json
+metadata:
+  winget:
+    processor:
+      identifier: dscv3
+resources:
+  - type: Microsoft.WinGet/Package
+    name: sevenzip
+    properties: { id: 7zip.7zip, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: wireshark
+    properties: { id: WiresharkFoundation.Wireshark, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: cmake
+    properties: { id: Kitware.CMake, source: winget, useLatest: true }

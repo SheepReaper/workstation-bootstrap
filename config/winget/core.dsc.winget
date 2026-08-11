@@ -1,31 +1,33 @@
-# yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
-properties:
-  resources:
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: powershell
-      settings: { id: Microsoft.PowerShell, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: git
-      settings: { id: Git.Git, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: github-cli
-      settings: { id: GitHub.cli, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: chezmoi
-      settings: { id: twpayne.chezmoi, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: rclone
-      settings: { id: Rclone.Rclone, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: oh-my-posh
-      settings: { id: JanDeDobbeleer.OhMyPosh, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: terminal
-      settings: { id: Microsoft.WindowsTerminal, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: npiperelay
-      settings: { id: jstarks.npiperelay, source: winget }
-    - resource: Microsoft.WinGet.DSC/WinGetPackage
-      id: yubikey-manager
-      settings: { id: Yubico.YubikeyManager, source: winget }
-  configurationVersion: 0.2.0
+$schema: https://raw.githubusercontent.com/PowerShell/DSC/main/schemas/2023/08/config/document.json
+metadata:
+  winget:
+    processor:
+      identifier: dscv3
+resources:
+  - type: Microsoft.WinGet/Package
+    name: powershell
+    properties: { id: Microsoft.PowerShell, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: git
+    properties: { id: Git.Git, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: github-cli
+    properties: { id: GitHub.cli, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: chezmoi
+    properties: { id: twpayne.chezmoi, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: rclone
+    properties: { id: Rclone.Rclone, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: oh-my-posh
+    properties: { id: JanDeDobbeleer.OhMyPosh, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: terminal
+    properties: { id: Microsoft.WindowsTerminal, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: npiperelay
+    properties: { id: jstarks.npiperelay, source: winget, useLatest: true }
+  - type: Microsoft.WinGet/Package
+    name: yubikey-manager
+    properties: { id: Yubico.YubikeyManager, source: winget, useLatest: true }

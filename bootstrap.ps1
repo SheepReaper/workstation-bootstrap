@@ -167,8 +167,9 @@ function Initialize-ExecutionPolicy {
 }
 
 function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
-    & winget configure validate --file $Path
-    if ($LASTEXITCODE -ne 0) { throw "Invalid WinGet configuration: $Path" }
+    # WinGet 1.29's legacy validator attempts to resolve native DSC v3 resources
+    # as gallery modules and rejects Microsoft's own Microsoft.WinGet/Package.
+    # The dscv3 processor performs schema/resource validation during configure.
     & winget configure --file $Path --accept-configuration-agreements --disable-interactivity
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "WinGet Configuration failed; reconciling curated packages directly for '$PackageProfile'."
@@ -386,7 +387,9 @@ function Restore-AgentSkills {
     }
     if (-not $npx) { throw 'npx is unavailable after installing the developer package profile.' }
 
-    & $npx.Source --yes skills install -g
+    $node = Get-Command node.exe -ErrorAction SilentlyContinue
+    if (-not $node) { throw 'Node.js is unavailable after activating the NVM-managed LTS release.' }
+    & $node.Source (Join-Path $sourceRoot 'scripts\restore-agent-skills.mjs') $lockPath
     if ($LASTEXITCODE -ne 0) { throw 'Agent skill restoration failed.' }
 }
 
