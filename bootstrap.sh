@@ -136,7 +136,8 @@ install_profile_packages
 if [ "$payload" = developer ]; then install_developer_packages; fi
 
 if ! command -v chezmoi >/dev/null 2>&1; then
-    sh -c "$(curl -fsLS https://get.chezmoi.io/lb)"
+    mkdir -p "$HOME/.local/bin"
+    sh -c "$(curl -fsLS https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
 fi
 
 case " $os_id $os_like " in

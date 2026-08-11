@@ -636,7 +636,7 @@ if (-not $ResumeAfterReboot) {
         }
         $linuxUser = Get-OrCreate-WslUser $ubuntuDistribution
         $payload = if ($WorkstationProfile -eq 'core') { 'profile' } else { 'developer' }
-        wsl -d $ubuntuDistribution --user $linuxUser -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
+        wsl -d $ubuntuDistribution --user $linuxUser -- sh -lc "cd ~ && curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
         if ($LASTEXITCODE -ne 0) { throw "Linux bootstrap failed in WSL distribution $ubuntuDistribution." }
     }
 }

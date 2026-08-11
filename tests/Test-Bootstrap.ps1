@@ -204,6 +204,7 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'useradd --create-home --shell /bin/bash'
         $script:Bootstrap | Should Match 'usermod --append --groups sudo'
         $script:Bootstrap | Should Match 'wsl -d \$ubuntuDistribution --user \$linuxUser -- sh -lc'
+        $script:Bootstrap | Should Match 'sh -lc "cd ~ && curl'
     }
 
     It 'enables WSL 2 prerequisites and resumes across the required reboot' {
