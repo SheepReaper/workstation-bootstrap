@@ -10,7 +10,9 @@ Describe 'bootstrap contract' {
 
     It 'defaults to the developer profile and validates supported profiles' {
         $script:Bootstrap | Should Match "ValidateSet\('core', 'developer', 'optional'\)"
-        $script:Bootstrap | Should Match '\[string\]\$Profile = ''developer'''
+        $script:Bootstrap | Should Match '\[string\]\$WorkstationProfile = ''developer'''
+        $script:Bootstrap | Should Match "\[Alias\('Profile'\)\]"
+        $script:Bootstrap | Should Not Match '(?m)^\s*\[string\]\$Profile\b'
     }
 
     It 'uses local resumable state without storing secrets' {
@@ -141,7 +143,7 @@ Describe 'bootstrap contract' {
     }
 
     It 'restores locked agent skills after applying dotfiles for developer profiles' {
-        $script:Bootstrap | Should Match 'if \(\$Profile -in @\(''developer'', ''optional''\)\)'
+        $script:Bootstrap | Should Match 'if \(\$WorkstationProfile -in @\(''developer'', ''optional''\)\)'
         $script:SkillRestore | Should Match 'JSON\.parse'
         $script:SkillRestore | Should Match "'--yes', 'skills', 'add', source, '-g', '-y'"
         $script:SkillRestore | Should Match 'npx-cli\.js'

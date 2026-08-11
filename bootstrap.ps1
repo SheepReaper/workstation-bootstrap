@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet('core', 'developer', 'optional')]
-    [string]$Profile = 'developer',
+    [Alias('Profile')]
+    [string]$WorkstationProfile = 'developer',
     [string]$GitHubOwner = 'SheepReaper',
     [string]$DotfilesRepository = 'dotfiles',
     [switch]$SkipVault,
@@ -69,7 +70,7 @@ function Invoke-ElevatedBootstrap([string]$SourceRoot) {
     $bootstrapCommand = @(
         '& powershell.exe -NoProfile -ExecutionPolicy Bypass -File'
         "$(& $quote (Join-Path $SourceRoot 'bootstrap.ps1'))"
-        "-Profile $(& $quote $Profile)"
+        "-WorkstationProfile $(& $quote $WorkstationProfile)"
         "-GitHubOwner $(& $quote $GitHubOwner)"
         "-DotfilesRepository $(& $quote $DotfilesRepository)"
         "-ExpectedUserProfile $(& $quote $env:USERPROFILE)"
@@ -431,7 +432,7 @@ function Register-BootstrapResume {
         '-NoProfile'
         '-ExecutionPolicy Bypass'
         "-File `"$(Join-Path $sourceRoot 'bootstrap.ps1')`""
-        "-Profile $Profile"
+        "-WorkstationProfile $WorkstationProfile"
         "-GitHubOwner $GitHubOwner"
         "-DotfilesRepository $DotfilesRepository"
     )
@@ -504,17 +505,17 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
             Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
         }
     }
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -Profile $Profile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -ResumeAfterReboot:$ResumeAfterReboot -Elevated -ExpectedUserProfile $env:USERPROFILE
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'bootstrap.ps1') -WorkstationProfile $WorkstationProfile -GitHubOwner $GitHubOwner -DotfilesRepository $DotfilesRepository -SkipVault:$SkipVault -CoreReady -ResumeAfterReboot:$ResumeAfterReboot -Elevated -ExpectedUserProfile $env:USERPROFILE
     if ($LASTEXITCODE -ne 0) { throw "PowerShell 7 bootstrap continuation failed with exit code $LASTEXITCODE." }
     return
 }
 if (-not $ResumeAfterReboot) {
     Invoke-Phase 'execution-policy' { Initialize-ExecutionPolicy }
-    if ($Profile -in @('developer', 'optional')) {
+    if ($WorkstationProfile -in @('developer', 'optional')) {
         Invoke-Phase 'packages-developer' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\developer.dsc.winget') 'developer' }
         Invoke-Phase 'node-lts' { Initialize-NodeLts }
     }
-    if ($Profile -eq 'optional') {
+    if ($WorkstationProfile -eq 'optional') {
         Invoke-Phase 'packages-optional' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\optional.dsc.winget') 'optional' }
     }
     Invoke-Phase 'pass-cli' { Install-PassCli }
@@ -523,7 +524,7 @@ if (-not $ResumeAfterReboot) {
     if (-not $SkipVault) { Invoke-Phase 'ssh-identity' { Restore-GitSshIdentity } }
     Invoke-Phase 'github' { Initialize-GitHub }
     Invoke-Phase 'dotfiles-windows' { Sync-Dotfiles }
-    if ($Profile -in @('developer', 'optional')) {
+    if ($WorkstationProfile -in @('developer', 'optional')) {
         Invoke-Phase 'agent-skills' { Restore-AgentSkills }
     }
     Invoke-Phase 'windows-config' {
@@ -539,7 +540,7 @@ if (-not $ResumeAfterReboot) {
     }
     }
 }
-    if ($Profile -in @('developer', 'optional')) {
+    if ($WorkstationProfile -in @('developer', 'optional')) {
         $script:wslRestartRequired = $false
         Invoke-Phase 'wsl-prerequisites' {
             $script:wslRestartRequired = Initialize-WslPrerequisites
@@ -566,7 +567,7 @@ if (-not $ResumeAfterReboot) {
             if ($LASTEXITCODE -ne 0) { throw 'Ubuntu installation failed or requires a reboot; rerun bootstrap afterward.' }
             $ubuntuDistribution = 'Ubuntu'
         }
-        $payload = if ($Profile -eq 'core') { 'profile' } else { 'developer' }
+        $payload = if ($WorkstationProfile -eq 'core') { 'profile' } else { 'developer' }
         wsl -d $ubuntuDistribution -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
         if ($LASTEXITCODE -ne 0) { throw "Linux bootstrap failed in WSL distribution $ubuntuDistribution." }
     }

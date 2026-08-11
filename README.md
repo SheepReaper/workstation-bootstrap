@@ -11,7 +11,8 @@ irm https://raw.githubusercontent.com/SheepReaper/workstation-bootstrap/main/boo
 ```
 
 For a non-default profile, download the script and invoke it with
-`-Profile core` or `-Profile optional`. Progress is journaled under
+`-WorkstationProfile core` or `-WorkstationProfile optional` (`-Profile` remains
+a compatibility alias). Progress is journaled under
 `%LOCALAPPDATA%\WorkstationBootstrap`; rerunning safely resumes completed phases.
 
 The script leaves the Windows Documents known-folder pointer unchanged. It can
