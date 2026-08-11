@@ -464,6 +464,21 @@ function Initialize-WslPrerequisites {
         }
         $restartRequired = $true
     }
+
+    $componentServicingReboot = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+    if (Test-Path -LiteralPath $componentServicingReboot) {
+        Write-Host 'Windows component servicing reports a pending restart.'
+        $restartRequired = $true
+    }
+
+    if (-not $restartRequired) {
+        $hypervisorPresent = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent
+        $firmwareVirtualization = @(Get-CimInstance Win32_Processor) |
+            Where-Object VirtualizationFirmwareEnabled | Select-Object -First 1
+        if (-not $hypervisorPresent -and -not $firmwareVirtualization) {
+            throw 'WSL 2 hardware virtualization is disabled. Enable Intel VT-x/AMD-V in firmware (or nested virtualization in the VM host), then rerun bootstrap.'
+        }
+    }
     return $restartRequired
 }
 

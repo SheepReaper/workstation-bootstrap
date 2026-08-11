@@ -169,6 +169,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'dism\.exe[^\r\n]*/enable-feature[^\r\n]*/norestart'
         $script:Bootstrap | Should Match 'dism\.exe[^\r\n]*/get-featureinfo[^\r\n]*/English'
         $script:Bootstrap | Should Not Match 'Get-WindowsOptionalFeature'
+        $script:Bootstrap | Should Match 'Component Based Servicing\\RebootPending'
+        $script:Bootstrap | Should Match 'VirtualizationFirmwareEnabled|HypervisorPresent'
         $script:Bootstrap | Should Match 'Register-BootstrapResume'
         $script:Bootstrap | Should Match 'CurrentVersion\\RunOnce'
         $script:Bootstrap | Should Match 'shutdown\.exe /r /t'
