@@ -330,7 +330,7 @@ function Restore-GitSshIdentity {
         if ($LASTEXITCODE -ne 0) { throw "Could not restrict SSH identity permissions: $target" }
         Write-Host 'Loading the restored identity into Windows ssh-agent. Insert or touch the primary YubiKey if requested.'
         Write-BootstrapStatus 'ssh-identity step=ssh-add state=started'
-        & (Join-Path $env:WINDIR 'System32\OpenSSH\ssh-add.exe') $target
+        & (Join-Path $env:WINDIR 'System32\OpenSSH\ssh-add.exe') -S internal $target
         if ($LASTEXITCODE -ne 0) { throw "Could not load the restored Git identity into ssh-agent: $target" }
         Write-BootstrapStatus 'ssh-identity step=ssh-add state=completed'
     }
