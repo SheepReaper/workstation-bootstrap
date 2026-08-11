@@ -21,7 +21,11 @@ for (const [source, names] of sources) {
   const args = ['--yes', 'skills', 'add', source, '-g', '-y'];
   for (const name of names) args.push('--skill', name);
   console.log(`[skills] ${source}: ${names.join(', ')}`);
-  const result = spawnSync(npx, args, { stdio: 'inherit', shell: false });
+  // Windows cannot execute npm's .cmd shim directly through CreateProcess.
+  const result = spawnSync(npx, args, {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

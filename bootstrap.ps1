@@ -166,10 +166,40 @@ function Initialize-ExecutionPolicy {
     }
 }
 
+function Enable-WinGetConfigurationV3 {
+    $settingsExport = (& winget settings export | Out-String) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or -not $settingsExport.userSettingsFile) {
+        throw 'Could not locate the WinGet user settings file.'
+    }
+
+    $settingsPath = $settingsExport.userSettingsFile
+    $content = if (Test-Path -LiteralPath $settingsPath) {
+        Get-Content -LiteralPath $settingsPath -Raw
+    } else { '' }
+
+    if ($content -match '"configuration03"\s*:\s*true') { return }
+    if ($content -match '"configuration03"\s*:\s*(?:false|null)') {
+        $content = $content -replace '"configuration03"\s*:\s*(?:false|null)', '"configuration03": true'
+    }
+    elseif ($content -match '"experimentalFeatures"\s*:\s*\{') {
+        $content = [regex]::Replace($content, '("experimentalFeatures"\s*:\s*\{)', '$1"configuration03": true,', 1)
+    }
+    elseif ($content -match '\{') {
+        $content = [regex]::Replace($content, '\{', '{"experimentalFeatures":{"configuration03":true},', 1)
+    }
+    else {
+        $content = '{"experimentalFeatures":{"configuration03":true}}'
+    }
+
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsPath) | Out-Null
+    Set-Content -LiteralPath $settingsPath -Value $content -Encoding utf8
+}
+
 function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
     # WinGet 1.29's legacy validator attempts to resolve native DSC v3 resources
     # as gallery modules and rejects Microsoft's own Microsoft.WinGet/Package.
     # The dscv3 processor performs schema/resource validation during configure.
+    Enable-WinGetConfigurationV3
     & winget configure --file $Path --accept-configuration-agreements --disable-interactivity
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "WinGet Configuration failed; reconciling curated packages directly for '$PackageProfile'."

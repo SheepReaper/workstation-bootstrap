@@ -62,7 +62,8 @@ future refresh.
 
 WinGet 1.29's legacy `configure validate` command misclassifies native v3 resources
 as unavailable gallery modules, so bootstrap lets the dscv3 processor validate
-during apply. If it cannot apply a configuration, bootstrap falls back to
+during apply. Bootstrap idempotently enables WinGet's required `configuration03`
+feature in the current user's settings before applying. If it cannot apply a configuration, bootstrap falls back to
 idempotent direct `winget install` calls using the same curated package groups.
 The configuration path remains preferred and is retried on the next run.
 

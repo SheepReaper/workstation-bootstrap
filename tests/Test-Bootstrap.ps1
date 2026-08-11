@@ -55,6 +55,10 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match '--accept-configuration-agreements'
         $script:Bootstrap | Should Match '--disable-interactivity'
         $script:Bootstrap | Should Not Match 'configure validate --file'
+        $script:Bootstrap | Should Match 'function Enable-WinGetConfigurationV3'
+        $script:Bootstrap | Should Match 'configuration03'
+        $script:Bootstrap.IndexOf('Enable-WinGetConfigurationV3') |
+            Should BeLessThan $script:Bootstrap.IndexOf('& winget configure --file')
     }
 
     It 'installs and activates LTS Node through NVM for Windows' {
@@ -141,6 +145,7 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'if \(\$Profile -in @\(''developer'', ''optional''\)\)'
         $script:SkillRestore | Should Match 'JSON\.parse'
         $script:SkillRestore | Should Match "'--yes', 'skills', 'add', source, '-g', '-y'"
+        $script:SkillRestore | Should Match "shell: process\.platform === 'win32'"
         $script:Bootstrap | Should Not Match 'skills[^\r\n]*install[^\r\n]*-g'
         $script:Bootstrap.IndexOf("Invoke-Phase 'agent-skills'") |
             Should BeGreaterThan $script:Bootstrap.IndexOf("Invoke-Phase 'dotfiles-windows'")
