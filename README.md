@@ -71,8 +71,13 @@ The configuration path remains preferred and is retried on the next run.
 - Existing SSH keys and links are never rotated, moved, revoked, or deleted.
 - On a native local `.ssh` directory, bootstrap restores the primary Git
   YubiKey resident-key handle from pass-cli, restricts its ACL, and loads it
-  into the Windows OpenSSH agent before GitHub authentication. Legacy linked
-  `.ssh` directories are detected and left untouched.
+  into the Windows OpenSSH agent before GitHub authentication when supported.
+  Legacy linked
+  `.ssh` directories are detected and left untouched. Hardware-backed files are
+  credential handles, not exportable private keys. If the Windows service agent
+  cannot load a FIDO handle, bootstrap warns and continues; the canonical
+  physical-key recovery operation is `ssh-keygen -K` with the intended YubiKey
+  attached, followed by explicit authentication testing.
 - The WSL SSH socket relays the Windows OpenSSH agent through npiperelay.
 
 Bootstrap runs its Windows reconciliation under the single approved elevated

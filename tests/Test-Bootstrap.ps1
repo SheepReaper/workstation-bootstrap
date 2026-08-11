@@ -101,6 +101,8 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'ssh-add\.exe''\) -S internal'
         $script:Bootstrap | Should Match 'Unlocking pass-cli to restore the primary Git identity'
         $script:Bootstrap | Should Match 'Loading the restored identity into Windows ssh-agent'
+        $script:Bootstrap | Should Match 'Windows ssh-agent could not load the FIDO handle'
+        $script:Bootstrap | Should Not Match 'throw "Could not load the restored Git identity into ssh-agent'
         $script:Bootstrap.IndexOf("Invoke-Phase 'ssh-identity'") |
             Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'github'")
     }

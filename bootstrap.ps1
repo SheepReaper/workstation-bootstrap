@@ -331,7 +331,11 @@ function Restore-GitSshIdentity {
         Write-Host 'Loading the restored identity into Windows ssh-agent. Insert or touch the primary YubiKey if requested.'
         Write-BootstrapStatus 'ssh-identity step=ssh-add state=started'
         & (Join-Path $env:WINDIR 'System32\OpenSSH\ssh-add.exe') -S internal $target
-        if ($LASTEXITCODE -ne 0) { throw "Could not load the restored Git identity into ssh-agent: $target" }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Windows ssh-agent could not load the FIDO handle. The handle remains available for direct SSH use; physical resident-key recovery and agent compatibility will be validated separately.'
+            Write-BootstrapStatus 'ssh-identity step=ssh-add state=unsupported'
+            continue
+        }
         Write-BootstrapStatus 'ssh-identity step=ssh-add state=completed'
     }
 }
