@@ -444,9 +444,15 @@ function Register-BootstrapResume {
 function Initialize-WslPrerequisites {
     $restartRequired = $false
     foreach ($featureName in 'Microsoft-Windows-Subsystem-Linux', 'VirtualMachinePlatform') {
-        $feature = Get-WindowsOptionalFeature -Online -FeatureName $featureName
-        if ($feature.State -eq 'Enabled') { continue }
-        if ($feature.State -eq 'EnablePending') {
+        $featureInfo = @(& dism.exe /online /get-featureinfo "/featurename:$featureName" /English)
+        if ($LASTEXITCODE -ne 0) {
+            throw "DISM could not query $featureName (exit code $LASTEXITCODE)."
+        }
+        $stateMatch = $featureInfo | Select-String '^\s*State\s*:\s*(.+)\s*$' | Select-Object -First 1
+        if (-not $stateMatch) { throw "DISM did not report the state of $featureName." }
+        $featureState = $stateMatch.Matches[0].Groups[1].Value.Trim()
+        if ($featureState -eq 'Enabled') { continue }
+        if ($featureState -eq 'Enable Pending') {
             $restartRequired = $true
             continue
         }
