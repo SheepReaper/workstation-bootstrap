@@ -142,6 +142,16 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'archive/\$revision\.zip'
     }
 
+    It 'reuses optional GitHub authentication for the source API lookup' {
+        $script:Bootstrap | Should Match 'function Get-GitHubApiHeaders'
+        $script:Bootstrap | Should Match '\$env:GH_TOKEN'
+        $script:Bootstrap | Should Match '\$env:GITHUB_TOKEN'
+        $script:Bootstrap | Should Match 'gh\.exe[\s\S]+auth token'
+        $script:Bootstrap | Should Match '\$headers\.Authorization = "Bearer'
+        $script:Bootstrap | Should Match 'Invoke-RestMethod[^\r\n]+-Headers \(Get-GitHubApiHeaders\)'
+        $script:Bootstrap | Should Match "authenticate GitHub CLI with 'gh auth login' or set GH_TOKEN"
+    }
+
     It 'restores locked agent skills after applying dotfiles for developer profiles' {
         $script:Bootstrap | Should Match 'if \(\$WorkstationProfile -in @\(''developer'', ''optional''\)\)'
         $script:SkillRestore | Should Match 'JSON\.parse'

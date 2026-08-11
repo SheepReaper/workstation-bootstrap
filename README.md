@@ -32,6 +32,9 @@ their resolved profile paths, regardless of whether Documents is local or
 protected by OneDrive. Each loader sources the real configuration at the local
 `%USERPROFILE%\.config\powershell\profile.ps1` file without modifying the
 automatic `$PROFILE` variable.
+For the initial GitHub source lookup, bootstrap automatically reuses `GH_TOKEN`,
+`GITHUB_TOKEN`, or an existing authenticated GitHub CLI session. It remains
+anonymous when none is available; authentication is not required on a fresh machine.
 
 ## Linux
 

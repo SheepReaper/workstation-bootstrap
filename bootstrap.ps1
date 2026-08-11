@@ -27,6 +27,32 @@ function Write-BootstrapStatus([string]$Message) {
     Add-Content -LiteralPath $statusLogPath -Value $line -Encoding utf8
 }
 
+function Get-GitHubApiHeaders {
+    $headers = @{
+        'Accept' = 'application/vnd.github+json'
+        'User-Agent' = $repository
+        'X-GitHub-Api-Version' = '2022-11-28'
+    }
+    $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { $null }
+    if (-not $token) {
+        $ghCommand = Get-Command gh.exe -ErrorAction SilentlyContinue
+        $ghPath = if ($ghCommand) { $ghCommand.Source } else { $null }
+        if (-not $ghPath) {
+            $installedGh = Join-Path $env:ProgramFiles 'GitHub CLI\gh.exe'
+            if (Test-Path -LiteralPath $installedGh) { $ghPath = $installedGh }
+        }
+        if ($ghPath) {
+            $token = (& $ghPath auth token 2>$null | Select-Object -First 1)
+            if ($LASTEXITCODE -ne 0) { $token = $null }
+        }
+    }
+    if ($token) {
+        $headers.Authorization = "Bearer $($token.Trim())"
+        Write-Host '[github] Using existing authentication for the source lookup.'
+    }
+    return $headers
+}
+
 function Get-SourceRoot {
     if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot 'config'))) {
         return $PSScriptRoot
@@ -35,7 +61,12 @@ function Get-SourceRoot {
     $sourceRoot = Join-Path $stateDirectory 'source'
     $archive = Join-Path $stateDirectory 'source.zip'
     New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
-    $commit = Invoke-RestMethod "https://api.github.com/repos/$GitHubOwner/$repository/commits/main" -Headers @{ 'User-Agent' = $repository } -UseBasicParsing
+    try {
+        $commit = Invoke-RestMethod "https://api.github.com/repos/$GitHubOwner/$repository/commits/main" -Headers (Get-GitHubApiHeaders) -UseBasicParsing
+    }
+    catch {
+        throw "GitHub could not resolve the bootstrap revision. If this is an API rate limit, authenticate GitHub CLI with 'gh auth login' or set GH_TOKEN, then rerun. $($_.Exception.Message)"
+    }
     $revision = $commit.sha
     Invoke-WebRequest "https://github.com/$GitHubOwner/$repository/archive/$revision.zip" -OutFile $archive -UseBasicParsing
     Expand-Archive -LiteralPath $archive -DestinationPath $stateDirectory -Force
