@@ -339,8 +339,11 @@ function Initialize-GitHub {
         gh auth login --hostname github.com --web --git-protocol ssh --skip-ssh-key
         if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication failed.' }
     }
-    gh auth setup-git
-    if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI credential-helper configuration failed.' }
+    $gitProtocol = (& gh config get git_protocol --host github.com 2>$null | Select-Object -First 1)
+    if ($gitProtocol -and $gitProtocol.Trim() -eq 'https') {
+        gh auth setup-git
+        if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI credential-helper configuration failed.' }
+    }
 }
 
 function Initialize-OpenSshAgent {
@@ -522,7 +525,9 @@ function Get-OrCreate-WslUser([string]$Distribution) {
     if ($LASTEXITCODE -ne 0) { throw "Could not determine the default user for $Distribution." }
     if ($currentUser -ne 'root') { return $currentUser }
 
-    $uid1000User = (& wsl.exe -d $Distribution --user root -- sh -lc "getent passwd 1000 | cut -d: -f1").Trim()
+    $uid1000Result = @(& wsl.exe -d $Distribution --user root -- sh -lc "getent passwd 1000 | cut -d: -f1")
+    $uid1000User = $uid1000Result | Where-Object { $_ } | Select-Object -First 1
+    if ($uid1000User) { $uid1000User = $uid1000User.Trim() }
     if ($LASTEXITCODE -eq 0 -and $uid1000User) { return $uid1000User }
 
     $suggestedUser = (Split-Path -Leaf $env:USERPROFILE).ToLowerInvariant() -replace '[^a-z0-9_-]', ''
