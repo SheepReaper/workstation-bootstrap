@@ -136,6 +136,24 @@ function Invoke-WinGetPackageFallback([string]$PackageProfile) {
     }
 }
 
+function Initialize-ExecutionPolicy {
+    $acceptablePolicies = @('RemoteSigned', 'Unrestricted', 'Bypass')
+    $localMachinePolicy = (Get-ExecutionPolicy -Scope LocalMachine).ToString()
+    if ($localMachinePolicy -notin $acceptablePolicies) {
+        Write-Host "Setting LocalMachine execution policy from $localMachinePolicy to RemoteSigned."
+        Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force
+    }
+
+    $policyList = Get-ExecutionPolicy -List
+    $enforcedPolicy = $policyList | Where-Object {
+        $_.Scope -in @('MachinePolicy', 'UserPolicy') -and
+        $_.ExecutionPolicy -notin @('Undefined', 'RemoteSigned', 'Unrestricted', 'Bypass')
+    } | Select-Object -First 1
+    if ($enforcedPolicy) {
+        Write-Warning "Group Policy enforces $($enforcedPolicy.ExecutionPolicy) at $($enforcedPolicy.Scope); bootstrap did not override it."
+    }
+}
+
 function Invoke-WinGetConfiguration([string]$Path, [string]$PackageProfile) {
     & winget configure validate --file $Path
     if ($LASTEXITCODE -ne 0) { throw "Invalid WinGet configuration: $Path" }
@@ -392,6 +410,7 @@ if ($ExpectedUserProfile -and -not [string]::Equals($env:USERPROFILE, $ExpectedU
     throw "UAC elevation changed the user profile from '$ExpectedUserProfile' to '$env:USERPROFILE'. Sign in with an administrator account instead of supplying another account at UAC."
 }
 
+Invoke-Phase 'execution-policy' { Initialize-ExecutionPolicy }
 if (-not $CoreReady) {
     Invoke-Phase 'packages-core' { Invoke-WinGetConfiguration (Join-Path $sourceRoot 'config\winget\core.dsc.winget') 'core' }
 }

@@ -67,6 +67,14 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'Invoke-WebRequest[^\r\n]*-UseBasicParsing'
     }
 
+    It 'ensures machine script execution is at least RemoteSigned without tightening permissive policies' {
+        $script:Bootstrap | Should Match 'function Initialize-ExecutionPolicy'
+        $script:Bootstrap | Should Match "@\('RemoteSigned', 'Unrestricted', 'Bypass'\)"
+        $script:Bootstrap | Should Match 'Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force'
+        $script:Bootstrap.IndexOf("Invoke-Phase 'execution-policy'") |
+            Should BeLessThan $script:Bootstrap.IndexOf("Invoke-Phase 'packages-core'")
+    }
+
     It 'requests elevation once and preserves the originating user profile' {
         $script:Bootstrap | Should Match 'function Test-IsAdministrator'
         $script:Bootstrap | Should Match 'Start-Process powershell\.exe -Verb RunAs'

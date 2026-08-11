@@ -17,7 +17,10 @@ For a non-default profile, download the script and invoke it with
 The script leaves the Windows Documents known-folder pointer unchanged. It can
 start under the inbox Windows PowerShell 5.1. It downloads its reviewed source,
 requests one UAC approval, verifies that elevation retained the originating
-user profile, installs the core tools, and then continues under PowerShell 7.
+user profile, ensures the machine execution policy is at least `RemoteSigned`,
+installs the core tools, and then continues under PowerShell 7. Existing
+`RemoteSigned`, `Unrestricted`, or `Bypass` machine policies are preserved, and
+bootstrap does not override domain Group Policy.
 It prints the pinned seven-character Git revision as it starts. If the elevated
 run fails, its window remains open so the error can be inspected. Interactive
 secret and OAuth setup is deliberately not transcribed. A secret-free phase and
