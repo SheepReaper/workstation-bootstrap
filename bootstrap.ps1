@@ -619,7 +619,10 @@ if (-not $ResumeAfterReboot) {
             return
         }
         Invoke-Phase 'wsl-linux' {
-        $ubuntuDistribution = @(wsl.exe --list --quiet) | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^Ubuntu(?:-|$)' } | Select-Object -First 1
+        $ubuntuDistribution = @(wsl.exe --list --quiet) |
+            ForEach-Object { ($_ -replace "`0", '').Trim() } |
+            Where-Object { $_ -match '^Ubuntu(?:-|$)' } |
+            Select-Object -First 1
         $ubuntuInstalled = [bool]$ubuntuDistribution
         if (-not $ubuntuInstalled) {
             wsl --install -d Ubuntu --no-launch

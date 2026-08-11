@@ -190,6 +190,7 @@ Describe 'bootstrap contract' {
 
     It 'does not reinstall an existing Ubuntu distribution' {
         $script:Bootstrap | Should Match 'wsl[^\r\n]*--list[^\r\n]*--quiet'
+        $script:Bootstrap | Should Match '-replace "`0", '''''
         $script:Bootstrap | Should Match 'if \(-not \$ubuntuInstalled\)'
     }
 
