@@ -60,7 +60,7 @@ install_node_lts() {
     # shellcheck disable=SC1090
     . "$NVM_DIR/nvm.sh"
     nvm install --lts
-    nvm alias default lts
+    nvm alias default 'lts/*'
     nvm use default
 }
 
@@ -146,12 +146,16 @@ esac
 initialize_vault
 
 if command -v systemctl >/dev/null 2>&1 && grep -qi microsoft /proc/version 2>/dev/null; then
-    sudo install -m 0644 /dev/stdin /etc/wsl.conf <<'EOF'
+    wsl_user=$(id -un)
+    sudo install -m 0644 /dev/stdin /etc/wsl.conf <<EOF
 [boot]
 systemd=true
 
 [automount]
 options="metadata,umask=22,fmask=11"
+
+[user]
+default=$wsl_user
 EOF
 fi
 

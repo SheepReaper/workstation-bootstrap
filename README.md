@@ -71,6 +71,10 @@ the next sign-in; declining leaves the machine ready for a manual restart and re
 The one-time post-reboot launch resumes at WSL reconciliation instead of replaying
 the already completed Windows setup. A manually initiated rerun still performs a
 full reconciliation.
+After installing Ubuntu with no initial launch, bootstrap creates a regular Linux
+user when the distribution still defaults to `root`; the username and sudo-password
+prompts are the one-time equivalent of Ubuntu's first-launch setup. Existing regular
+default users are reused.
 
 Bootstrap probes each curated configuration with the non-mutating `winget
 configure show` command. Clients that can parse and resolve native DSC v3 apply

@@ -193,6 +193,15 @@ Describe 'bootstrap contract' {
         $script:Bootstrap | Should Match 'if \(-not \$ubuntuInstalled\)'
     }
 
+    It 'never runs the Linux bootstrap as the WSL root account' {
+        $script:Bootstrap | Should Match 'function Get-OrCreate-WslUser'
+        $script:Bootstrap | Should Match "\$currentUser -ne 'root'"
+        $script:Bootstrap | Should Match 'getent passwd 1000'
+        $script:Bootstrap | Should Match 'useradd --create-home --shell /bin/bash'
+        $script:Bootstrap | Should Match 'usermod --append --groups sudo'
+        $script:Bootstrap | Should Match 'wsl -d \$ubuntuDistribution --user \$linuxUser -- sh -lc'
+    }
+
     It 'enables WSL 2 prerequisites and resumes across the required reboot' {
         $script:Bootstrap | Should Match 'Microsoft-Windows-Subsystem-Linux'
         $script:Bootstrap | Should Match 'VirtualMachinePlatform'

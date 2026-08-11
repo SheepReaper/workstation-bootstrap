@@ -517,6 +517,32 @@ function Initialize-WslPrerequisites {
     return $restartRequired
 }
 
+function Get-OrCreate-WslUser([string]$Distribution) {
+    $currentUser = (& wsl.exe -d $Distribution -- sh -lc 'id -un').Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Could not determine the default user for $Distribution." }
+    if ($currentUser -ne 'root') { return $currentUser }
+
+    $uid1000User = (& wsl.exe -d $Distribution --user root -- sh -lc "getent passwd 1000 | cut -d: -f1").Trim()
+    if ($LASTEXITCODE -eq 0 -and $uid1000User) { return $uid1000User }
+
+    $suggestedUser = (Split-Path -Leaf $env:USERPROFILE).ToLowerInvariant() -replace '[^a-z0-9_-]', ''
+    if ($suggestedUser -notmatch '^[a-z_][a-z0-9_-]*$') { $suggestedUser = 'developer' }
+    $linuxUser = Read-Host "Ubuntu needs a non-root Linux account. Username [$suggestedUser]"
+    if (-not $linuxUser) { $linuxUser = $suggestedUser }
+    if ($linuxUser -notmatch '^[a-z_][a-z0-9_-]*$') {
+        throw "Invalid Linux username '$linuxUser'. Use lowercase letters, digits, underscores, and hyphens."
+    }
+
+    & wsl.exe -d $Distribution --user root -- useradd --create-home --shell /bin/bash $linuxUser
+    if ($LASTEXITCODE -ne 0) { throw "Could not create Linux user $linuxUser in $Distribution." }
+    & wsl.exe -d $Distribution --user root -- usermod --append --groups sudo $linuxUser
+    if ($LASTEXITCODE -ne 0) { throw "Could not grant sudo access to Linux user $linuxUser." }
+    Write-Host "Set the sudo password for Linux user $linuxUser."
+    & wsl.exe -d $Distribution --user root -- passwd $linuxUser
+    if ($LASTEXITCODE -ne 0) { throw "Could not set the password for Linux user $linuxUser." }
+    return $linuxUser
+}
+
 $sourceRoot = Get-SourceRoot
 $sourceRevision = Get-SourceRevision $sourceRoot
 Write-Host "[version] workstation-bootstrap @$sourceRevision"
@@ -598,8 +624,9 @@ if (-not $ResumeAfterReboot) {
             if ($LASTEXITCODE -ne 0) { throw 'Ubuntu installation failed or requires a reboot; rerun bootstrap afterward.' }
             $ubuntuDistribution = 'Ubuntu'
         }
+        $linuxUser = Get-OrCreate-WslUser $ubuntuDistribution
         $payload = if ($WorkstationProfile -eq 'core') { 'profile' } else { 'developer' }
-        wsl -d $ubuntuDistribution -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
+        wsl -d $ubuntuDistribution --user $linuxUser -- sh -lc "curl -fsLS https://raw.githubusercontent.com/$GitHubOwner/$repository/main/bootstrap.sh | sh -s -- $payload $GitHubOwner $DotfilesRepository"
         if ($LASTEXITCODE -ne 0) { throw "Linux bootstrap failed in WSL distribution $ubuntuDistribution." }
     }
 }
